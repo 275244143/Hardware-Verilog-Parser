@@ -3,3 +3,8 @@ Revision history for Perl extension Hardware::Verilog::Parser.
 0.01  Fri Feb  4 09:50:20 2000
 	- original version; created by h2xs 1.19
 
+0.02	--
+
+0.03  7 Feb 2000
+	grammar actually compiles
+	cannot parse an always block though.

@@ -11,7 +11,7 @@ use Parse::RecDescent;
 @ISA = ( 'Parse::RecDescent' );
 ##################################################################
 use vars qw ( $VERSION  @ISA);
-$VERSION = '0.02';
+$VERSION = '0.03';
 ##################################################################
 
 ##################################################################
@@ -119,6 +119,7 @@ module_declaration  :
         ';'
         module_item(s?)
         'endmodule'
+	| <error>
 
 module_keyword : 
         'module'  |  'macromodule'
@@ -127,6 +128,7 @@ list_of_ports  :
         '(' 
         one_or_more_ports_separated_by_commas 
         ')'
+	| <error>
 
 port  : 
         optional_port_expression |
@@ -153,16 +155,29 @@ port_reference  :
 port_bit_or_slice :
         bit_or_slice
 
+bit_or_slice :
+	'[' 
+	bit_or_range
+	']'
+
+bit_or_range :
+	  single_bit
+	| range
+
+single_bit :
+	expression
+
 module_item : 
         module_item_declaration | 
         parameter_override | 
-        continuous_assign | 
+        continuous_assignment | 
         gate_instantiation | 
         udp_instantiation | 
         module_instantiation | 
         specify_block | 
         initial_construct | 
         always_construct
+	| <error>
 
 module_item_declaration :
         parameter_declaration | 
@@ -176,14 +191,18 @@ module_item_declaration :
         time_declaration | 
         realtime_declaration | 
         event_declaration | 
-        task _declaration | 
+        task_declaration | 
         function_declaration
+	| <error>
 
 parameter_override :
         'defparam'
-        list_of_param_assignments
+        one_or_more_parameter_assignments_serparated_by_commas
         ';'
 
+###################################################################
+# declarations
+###################################################################
 
 
 parameter_declaration  :  
@@ -191,11 +210,8 @@ parameter_declaration  :
         one_or_more_parameter_assignments_serparated_by_commas
         ';'
 
-list_of_param_assignments :
-        one_or_more_parameter_assignments_serparated_by_commas
-
-param_assignment : 
-        parameter_identifer
+parameter_assignment : 
+        parameter_identifier
         '=' 
         constant_expression
 
@@ -249,6 +265,11 @@ realtime_declaration  :
         one_or_more_real_identifiers_separated_by_commas
         ';'
 
+event_declaration :
+	'event'
+	 one_or_more_event_identifiers_separated_by_commas
+        ';'
+
 
 register_name  : 
         register_identifier | 
@@ -261,7 +282,13 @@ range  :
         lsb_constant_expression 
         ']'
 
-                
+
+msb_constant_expression :
+	constant_expression
+
+lsb_constant_expression :
+	constant_expression
+
 net_declaration  : 
         net_type_vectored_scalared_range_delay3_list_of_net_identifiers | 
         trireg_vectored_scalared_charge_strength_range_delay3_list_of_net |
@@ -269,24 +296,24 @@ net_declaration  :
 
 net_type_vectored_scalared_range_delay3_list_of_net_identifiers : 
         net_type
-        vectored_or_scalared
+        vectored_or_scalared(?)
         range(?)
         delay3(?)
-        one_or_more_net_decl_assignments_separated_by_commas
+        one_or_more_net_identifiers_separated_by_commas
         ';'
 
 trireg_vectored_scalared_charge_strength_range_delay3_list_of_net : 
         'trireg'
-        vectored_or_scalared
+        vectored_or_scalared(?)
         charge_strength(?)
         range(?)
         delay3(?)                
-        one_or_more_net_decl_assignments_separated_by_commas
+        one_or_more_net_identifiers_separated_by_commas
         ';'
 
 net_type_vectored_scalared_drive_strength_range_delay3_list_of_net_decl :
         net_type
-        vectored_or_scalared
+        vectored_or_scalared(?)
         drive_strength(?)
         range(?)
         delay3(?)
@@ -329,18 +356,18 @@ strength1_comma_strength0 :
         strength1 ',' strength0
 
 strength0_comma_highz1 : 
-        strength0 ',' highz1
+        strength0 ',' 'highz1'
 
 strength1_comma_highz0 : 
-        strength1 ',' highz0
+        strength1 ',' 'highz0'
 
 
 highz1_comma_strength0 : 
-        highz1 ',' strength0
+        'highz1' ',' strength0
 
 
 highz0_comma_strength1 : 
-        highz0 ',' strength1
+        'highz0' ',' strength1
 
 strength0 : 
 	'supply0'  |  'strong0'  |  'pull0'  |  'weak0' 
@@ -385,7 +412,7 @@ three_delay_values :
 delay_value  :  
 	unsigned_number  |  
           parameter_identifier  | 
-          constant mintypmax expression
+          constant_mintypmax_expression
 
 net_decl_assignment :
 
@@ -445,7 +472,7 @@ gate_instantiation  :
         enable_gatetype_drive_strength_delay3_enable_gate_instance | 
         mos_switchtype_delay3_mos_switch_instance | 
         pass_switchtype_pass_switch_instance | 
-        pass_en_switchtype_delay3_pass_en_switch_instance | 
+        pass_en_switchtype_delay3_pass_enable_switch_instance | 
         cmos_switchtype_delay3_cmos_switch_instance | 
         pullup_pullup_strength_pull_gate_instance | 
         pulldown_pulldown_strength_pull_gate_instance 
@@ -480,13 +507,13 @@ mos_switchtype_delay3_mos_switch_instance :
 
 pass_switchtype_pass_switch_instance : 
         pass_switchtype
-        one_or_more_pas_switch_instance_separated_by_commas
+        one_or_more_pass_switch_instance_separated_by_commas
         ';'
 
-pass_en_switchtype_delay3_pass_en_switch_instance : 
+pass_en_switchtype_delay3_pass_enable_switch_instance : 
         pass_en_switchtype
         delay3(?)
-        one_or_more_pass_en_switch_instance_separated_by_commas
+        one_or_more_pass_enable_switch_instance_separated_by_commas
         ';'
 
 cmos_switchtype_delay3_cmos_switch_instance : 
@@ -569,7 +596,7 @@ pull_gate_instance  :
          output_terminal 
         ')'
 
-name_Of_gate_instance  :  
+name_of_gate_instance  :  
         gate_instance_identifier
         range(?)
 
@@ -604,7 +631,7 @@ enable_terminal  :
 ncontrol_terminal :  
         scalar_expression 
 
-pcontrol_tenninal :  
+pcontrol_terminal :  
         scalar_expression 
 
 output_terminal  :        
@@ -629,7 +656,7 @@ pass_switchtype  :
 	'tran'  |  'rtran'   
 
 pass_en_switchtype :
-	'tranif0' | 'tranif1' | rtranif1' | 'rtranif0'  
+	'tranif0' | 'tranif1' | 'rtranif1' | 'rtranif0'  
 
 cmos_switchtype :
 	'cmos' | 'rcmos'  
@@ -689,7 +716,7 @@ udp_declaration  :
         udp_body
         'endprimitive'
 
-udp_porlist  :  
+udp_port_list  :  
         output_port_identifier ','
         one_or_more_input_port_identifier_separated_by_commas
 
@@ -756,7 +783,7 @@ current_state  :
 next_state  : 
         output_symbol | '-'
 
-output_ symbol : 
+output_symbol : 
         /[01xX]/
 
 level_symbol  :
@@ -779,9 +806,23 @@ udp_instance :
         one_or_more_input_port_connections_separated_by_commas
         ';'
 
+name_of_udp_instance :
+	udp_instance_identifier
+	'['
+	range
+	']'
+
+input_port_connection :
+	list_of_module_connections
+
+inout_port_connection :
+	list_of_module_connections
+
+output_port_connection :
+	list_of_module_connections
 
 #####################################################################
-# continuous assign
+# behavioural statements
 #####################################################################
 
 continuous_assignment  : 
@@ -797,13 +838,13 @@ net_assignment :
 initial_construct  : 
         'initial' statement
 
-always_constuct  : 
+always_construct  : 
         'always' statement
 
 statement :
-	  blocking_assignment_with_comma 
-	| non_blocking_assignment_with_comma 
-	| procedural_continuous_assignment_with_comma 
+	  blocking_assignment_with_semicolon
+	| non_blocking_assignment_with_semicolon 
+	| procedural_continuous_assignment_with_semicolon 
 	| procedural_timing_control_statement 
 	| conditional_statement 
 	| case_statement 
@@ -816,6 +857,14 @@ statement :
 	| task_enable 
 	| system_task_enable
 
+blocking_assignment_with_semicolon :
+	blocking_assignment ';'
+
+non_blocking_assignment_with_semicolon :
+	non_blocking_assignment ';'
+
+procedural_continuous_assignment_with_semicolon :
+	procedural_continuous_assignment ';'
 
 statement_or_null  : 
         statement | ';'
@@ -828,14 +877,14 @@ blocking_assignment :
         delay_or_event_control(?)
         expression
 
-nonblocking_assignment :
+non_blocking_assignment :
         reg_lvalue 
         '<='
         delay_or_event_control(?)
         expression
 
 
-procedural_continuous_assignments :
+procedural_continuous_assignment :
           assign_reg_assignment 
 	| deassign_reg_lvalue 
 	| force_reg_assignment 
@@ -867,7 +916,7 @@ procedural_timing_control_statement  :
 
 delay_or_event_control : 
           delay_control
-        | event control
+        | event_control
 
 
 delay_control :
@@ -875,6 +924,20 @@ delay_control :
 
 mintypmax_expression_in_paren  : 
 	 '(' mintypmax_expression ')'
+
+event_control :
+	  at_event_identifier
+	| at_event_expression_list
+
+at_event_identifier :
+	'@'
+	event_identifier
+
+at_event_expression_list :
+	'@'
+	'('
+	event_expression_list
+	')'
 
 event_expression_list :
 	event_expression or_event_expression(s?)
@@ -997,6 +1060,10 @@ par_block  :
         statement(s?)
         'join'
 
+block_identifier_block_item_declaration :
+	':'
+	block_item_declaration(s?)
+
 task_enable  : 
         task_identifier
         expression_list_in_paren(?)
@@ -1077,6 +1144,13 @@ pathpulse_specify_input_terminal_descriptor :
 limit_value :
         constant_mintypmax_expression
 
+reject_limit_value :
+	limit_value
+
+error_limit_value :
+	limit_value
+
+
 path_declaration :
 	(
 	  simple_path_declaration |
@@ -1142,31 +1216,31 @@ path_delay_value :
 
 
 list_of_path_delay_expressions : 
-	  one_path_delay_expression 
-	| two_path_delay_expressions 
-	| three_path_delay_expressions 
+	  twelve_path_delay_expressions
 	| six_path_delay_expressions 
-	| twelve_path_delay_expressions
+	| three_path_delay_expressions 
+	| two_path_delay_expressions 
+	| one_path_delay_expression 
 
 one_path_delay_expression :
         t_pde
 
 two_path_delay_expressions :
-        trise_pde ',' pfall_pde
+        trise_pde ',' tfall_pde
 
 three_path_delay_expressions :
-        trise_pde ',' pfall_pde ',' tz_pde
+        trise_pde ',' tfall_pde ',' tz_pde
 
 six_path_delay_expressions :
         t01_pde ',' t10_pde ',' t0z_pde ','
 
-        tz1_pde ',' p1z_pde ',' pz0_pde
+        tz1_pde ',' t1z_pde ',' tz0_pde
 
 twelve_path_delay_expressions :
         t01_pde ',' t10_pde ',' t0z_pde ','
-        tz1_pde ',' p1z_pde ',' pz0_pde ','
-        t0x_pde ',' txa_pde ',' t1x_pde ','
-        tx0_pde ',' pxz_pde ',' pzx_pde
+        tz1_pde ',' t1z_pde ',' tz0_pde ','
+        t0x_pde ',' tx1_pde ',' t1x_pde ','
+        tx0_pde ',' txz_pde ',' tzx_pde
 
 t_pde :
         path_delay_expression
@@ -1235,7 +1309,7 @@ full_edge_sensitive_path_description_equal_path_delay_value :
         path_delay_value
 
 # check this
-parallel_edge_sensitive_path : 
+parallel_edge_sensitive_path_description : 
         '('
         edge_identifier(?)
         specify_input_terminal_descriptor
@@ -1247,7 +1321,7 @@ parallel_edge_sensitive_path :
         ')'
 
 # check this rule
-full_edge_sensitive_path : 
+full_edge_sensitive_path_description : 
         '('
         edge_identifier(?)
         list_of_path_inputs
@@ -1267,7 +1341,7 @@ edge_identifier :
 
 state_dependent_path_declaration : 
 	  if_conditional_expression_simple_path_declaration 
-	| if_conditional_expression_edge_ensitive_path_declaration 
+	| if_conditional_expression_edge_sensitive_path_declaration 
 	| ifnone_simple_path_declaration 
 
 if_conditional_expression_simple_path_declaration :
@@ -1275,10 +1349,10 @@ if_conditional_expression_simple_path_declaration :
         '(' conditional_expression ')'
         simple_path_declaration 
 
-if_conditional_expression_edge_ensitive_path_declaration :
+if_conditional_expression_edge_sensitive_path_declaration :
         'if'
         '(' conditional_expression ')'
-        edge_ensitive_path_declaration
+        edge_sensitive_path_declaration
 
 ifnone_simple_path_declaration :
         'ifnone'
@@ -1456,7 +1530,7 @@ net_lvalue :
 	  net_identifier  
 	| net_identifier_with_bit_select 
 	| net_identifier_with_slice_select  
-	| net_cancatentation
+	| net_concatenation
 
 net_identifier_with_bit_select :
         net_identifier '[' expression ']'
@@ -1468,16 +1542,16 @@ net_concatenation :
         '{' one_or_more_expressions_separated_by_commas '}'
 
 reg_lvalue :
-	  reg_identifier   
+	  register_identifier   
 	| reg_identifier_with_bit_select  
 	| reg_identifier_with_slice_select   
-	| reg_cancatentation
+	| reg_concatenation
 
 reg_identifier_with_bit_select :
-        reg_identifier '[' expression ']'
+        register_identifier '[' expression ']'
 
 reg_identifier_with_slice_select :
-        reg_identifier range
+        register_identifier range
 
 reg_concatenation : 
         '{' one_or_more_expressions_separated_by_commas '}'
@@ -1499,7 +1573,9 @@ constant_primary :
 	  number  
 	| parameter_identifier  
 	| constant_concatenation  
-	| constant_multiple_concatenation
+
+constant_concatenation :
+        '{' one_or_more_constant_expressions_separated_by_commas '}'
 
 constant_mintypmax_expression :
         constant_expression 
@@ -1526,31 +1602,56 @@ expression :
 	| bin_expr
 
 bin_expr : 
-	uni_expr binary_operator bin_expr
-	| uni_expr
+	uni_expr binary_operator_bin_expr(?)
+
+binary_operator_bin_expr :
+	binary_operator
+	bin_expr
 
 uni_expr : 
-	unary_operator primary 
-	| primary
-
-
+	unary_operator(?) primary 
 
 unary_operator : 
-	'+' | '-' | '!' | '~' | '&' | '~&' | '|' |
-        '~|' | '^' | '~^' | '^~' 
+	  '+' 
+	| '-' 
+	| '!' 
+	| '~' 
+	| '&' 
+	| '~&' 
+	| '|' 
+	| '~|' 
+	| '^' 
+	| '~^' 
+	| '^~' 
 
 binary_operator : 
-        '+' | '-' | '*' | '/' | '%' | 
-        '==' | '!=' | '===' | '!==' | 
-        '&&' | '||' | '<' | '<=' | 
-        '>' | '>=' | '&' | '|' | '^' |
-        '^~' | '~^' | '>>' | '<<'
+	  '+' 
+	| '-' 
+	| '*' 
+	| '/' 
+	| '%'
+	| '==' 
+	| '!=' 
+	| '===' 
+	| '!==' 
+	|  '&&' 
+	| '||' 
+	| '<' 
+	| '<=' 
+	| '>'
+	| '>=' 
+	| '&' 
+	| '|' 
+	| '^' 
+	| '^~' 
+	| '~^' 
+	| '>>' 
+	| '<<'
 
 primary : 
 	  number 
 	| identifier_bit_or_slice 
 	| concatenation 
-	| multiple_concatenation 
 	| function_call  
 	| mintypmax_expression_in_paren 
         
@@ -1636,7 +1737,7 @@ octal_base  :
 hex_base  : 
 	"'h"  |  "'H"  
 
-decimal _digit : 
+decimal_digit : 
         /[0-9]/
 
 binary_digit : 
@@ -1653,13 +1754,6 @@ concatenation :
         '{' 
         one_or_more_expressions_separated_by_commas
         '}'
-
-multiple_concatenation : 
-        expression_catenation(s)
-
-expression_concatenation :
-        expression
-        concatenation 
 
 function_call : 
 	  function_identifier_parameter_list 
@@ -1687,6 +1781,13 @@ string :
 any_string_character : 
 	/[a-zA-Z0-9_]/
 
+
+scalar_expression :
+	expression
+
+conditional_expression :
+	expression
+
 #################################################################
 # general
 #################################################################
@@ -1694,6 +1795,71 @@ any_string_character :
 
 identifier :
         /[a-zA-Z][a-zA-Z_]*/
+
+
+block_identifer : 
+	identifier
+
+event_identifier : 
+	identifier
+
+function_identifier : 
+	identifier
+
+gate_instance_identifier : 
+	identifier
+
+inout_port_identifier : 
+	identifier
+
+input_port_identifier : 
+	identifier
+
+memory_identifier : 
+	identifier
+
+module_identifier : 
+	identifier
+
+module_instance_identifier : 
+	identifier
+
+net_identifier : 
+	identifier
+
+output_port_identifier : 
+	identifier
+
+parameter_identifier : 
+	identifier
+
+port_identifier : 
+	identifier
+
+real_identifier : 
+	identifier
+
+register_identifier : 
+	identifier
+
+specparam_identifier : 
+	identifier
+
+task_identifier : 
+	identifier
+
+terminal_identifier : 
+	identifier
+
+udp_identifier : 
+	identifier
+
+udp_instance_identifier : 
+	identifier
+
+udp_output_port_identifier : 
+	identifier
+
 
 
 
@@ -1706,97 +1872,106 @@ identifier :
 
 
 one_or_more_binary_digits_separated_by_optional_underscore : 
-	<leftop: binary_digit /(,)/ binary_digit>(?)
+	<leftop: binary_digit /(,)/ binary_digit>
 
 one_or_more_cmos_switch_instance_separated_by_commas : 
-	<leftop: cmos_switch_instance /(,)/ cmos_switch_instance>(?)
+	<leftop: cmos_switch_instance /(,)/ cmos_switch_instance>
 
 one_or_more_decimal_digits_possibly_separated_by_underscore : 
-	<leftop: decimal_digit /(,)/ decimal_digit>(?)
+	<leftop: decimal_digit /(_)/ decimal_digit>
 
 one_or_more_enable_gate_instance_separated_by_commas : 
-	<leftop: enable_gate_instance /(,)/ enable_gate_instance>(?)
+	<leftop: enable_gate_instance /(,)/ enable_gate_instance>
 
 one_or_more_expressions_separated_by_commas : 
-	<leftop: expression /(,)/ expression>(?)
+	<leftop: expression /(,)/ expression>
+
+one_or_more_constant_expressions_separated_by_commas : 
+	<leftop: expression /(,)/ expression>
 
 one_or_more_hex_digits_separated_by_optional_underscore : 
-	<leftop: hex_digit /(,)/ hex_digit>(?)
+	<leftop: hex_digit /(,)/ hex_digit>
 
 one_or_more_input_terminals_separated_by_commas : 
-	<leftop: input_terminal /(,)/ input_terminal>(?)
+	<leftop: input_terminal /(,)/ input_terminal>
 
 one_or_more_input_port_identifier_separated_by_commas : 
-	<leftop: input_port_identifier /(,)/ input_port_identifier>(?)
+	<leftop: input_port_identifier /(,)/ input_port_identifier>
 
 one_or_more_input_port_connections_separated_by_commas : 
-	<leftop: input_port_connection /(,)/ input_port_connection>(?)
+	<leftop: input_port_connection /(,)/ input_port_connection>
 
 one_or_more_mos_switch_instance_separated_by_commas : 
-	<leftop: mos_switch_instance /(,)/ mos_switch_instance>(?)
+	<leftop: mos_switch_instance /(,)/ mos_switch_instance>
 
 one_or_more_named_port_connections_separated_by_commas : 
-	<leftop: named_port_connection /(,)/ named_port_connection>(?)
+	<leftop: named_port_connection /(,)/ named_port_connection>
 
 one_or_more_net_assignments_separated_by_commas : 
-	<leftop: net_assignment /(,)/ net_assignment>(?)
+	<leftop: net_assignment /(,)/ net_assignment>
 
 one_or_more_net_decl_assignments_separated_by_commas : 
-	<leftop: net_decl_assignment /(,)/ net_decl_assignment>(?)
+	<leftop: net_decl_assignment /(,)/ net_decl_assignment>
+
+one_or_more_net_identifiers_separated_by_commas : 
+	<leftop: net_identifier /(,)/ net_identifier>
 
 one_or_more_n_input_gate_instance_separated_by_commas : 
-	<leftop: n_input_gate_instance /(,)/ n_input_gate_instance>(?)
+	<leftop: n_input_gate_instance /(,)/ n_input_gate_instance>
 
 one_or_more_n_output_gate_instance_separated_by_commas : 
-	<leftop: n_output_gate_instance /(,)/ n_output_gate_instance>(?)
+	<leftop: n_output_gate_instance /(,)/ n_output_gate_instance>
 
 one_or_more_octal_digits_separated_by_optional_underscore : 
-	<leftop: octal_digit /(,)/ octal_digit>(?)
+	<leftop: octal_digit /(,)/ octal_digit>
 
 one_or_more_output_terminals_separated_by_commas : 
-	<leftop: output_terminal /(,)/ output_terminal>(?)
+	<leftop: output_terminal /(,)/ output_terminal>
 
 one_or_more_ordered_port_connections_separated_by_commas : 
-	<leftop: ordered_port_connection /(,)/ ordered_port_connection>(?)
+	<leftop: ordered_port_connection /(,)/ ordered_port_connection>
 
 one_or_more_parameter_assignments_serparated_by_commas : 
-	<leftop: parameter_assignment /(,)/ parameter_assignment>(?)
+	<leftop: parameter_assignment /(,)/ parameter_assignment>
 
-one_or_more_pass_en_switch_instance_separated_by_commas : 
-	<leftop: pass_en_switch_instance /(,)/ pass_en_switch_instance>(?)
+one_or_more_pass_enable_switch_instance_separated_by_commas : 
+	<leftop: pass_enable_switch_instance /(,)/ pass_enable_switch_instance>
 
-one_or_more_pas_switch_instance_separated_by_commas : 
-	<leftop: pas_switch_instance /(,)/ pas_switch_instance>(?)
+one_or_more_pass_switch_instance_separated_by_commas : 
+	<leftop: pass_switch_instance /(,)/ pass_switch_instance>
 
 one_or_more_ports_separated_by_commas : 
-	<leftop: port /(,)/ port>(?)
+	<leftop: port /(,)/ port>
 
 one_or_more_port_identifiers_separated_by_commas : 
-	<leftop: port_identifier /(,)/ port_identifier>(?)
+	<leftop: port_identifier /(,)/ port_identifier>
 
 one_or_more_port_references_separated_by_commas : 
-	<leftop: port_reference /(,)/ port_reference>(?)
+	<leftop: port_reference /(,)/ port_reference>
 
 one_or_more_pull_gate_instance_seperated_by_commas : 
-	<leftop: pull_gate_instance /(,)/ pull_gate_instance>(?)
+	<leftop: pull_gate_instance /(,)/ pull_gate_instance>
 
 one_or_more_real_identifiers_separated_by_commas : 
-	<leftop: real_identifier /(,)/ real_identifier>(?)
+	<leftop: real_identifier /(,)/ real_identifier>
+
+one_or_more_event_identifiers_separated_by_commas : 
+	<leftop: event_identifier /(,)/ event_identifier>
 
 one_or_more_register_names_separated_by_commas : 
-	<leftop: register_name /(,)/ register_name>(?)
+	<leftop: register_name /(,)/ register_name>
 
 one_or_more_specify_input_terminal_descriptors_separated_by_commas : 
-	<leftop: specify_input_terminal_descriptor /(,)/ specify_input_terminal_descriptor>(?)
+	<leftop: specify_input_terminal_descriptor /(,)/ specify_input_terminal_descriptor>
 
 one_or_more_specify_output_terminal_descriptors_separated_by_commas : 
-	<leftop: specify_output_terminal_descriptor /(,)/ specify_output_terminal_descriptor>(?)
+	<leftop: specify_output_terminal_descriptor /(,)/ specify_output_terminal_descriptor>
 
 one_or_more_specparam_assignments_separated_by_commas : 
-	<leftop: specparam_assignment /(,)/ specparam_assignment>(?)
+	<leftop: specparam_assignment /(,)/ specparam_assignment>
 
 one_or_more_udp_instances_separated_by_commas : 
-	<leftop: udp_instance /(,)/ udp_instance>(?)
+	<leftop: udp_instance /(,)/ udp_instance>
 
 
 	};   # end of return statement
@@ -1842,7 +2017,7 @@ my $could_be_quote;
   if ($state eq 'code')
 	{
 
-	unless ( ($text =~ /\\\*/) or  ($text =~ /\\\\/) or ($text =~ /\"/) )
+	unless ( ($text =~ /\/\*/) or  ($text =~ /\/\//) or ($text =~ /\"/) )
 		{ 
 		$filtered_text .= $text ;
 		last;
@@ -1851,10 +2026,10 @@ my $could_be_quote;
 
 	# look for comment or quoted string
 	( $string_prior_to_line_comment, $string_after_line_comment)
-		= split( /\\\\/ , $text, 2 );
+		= split( '//' , $text, 2 );
 
 	( $string_prior_to_block_comment, $string_after_block_comment)
-		= split( /\\\*/ , $text, 2 );
+		= split( /\/\*/ , $text, 2 );
 
 	( $string_prior_to_quote, $string_after_quote)
 		= split( /\"/ , $text, 2 );
@@ -1884,14 +2059,14 @@ my $could_be_quote;
 		{ 
 		$state = 'linecomment';
 		$filtered_text .= $string_prior_to_line_comment;
-		$text = '\\' . $string_after_line_comment;
+		$text = '//' . $string_after_line_comment;
 		}
 
 	elsif($bc_lt_q and $bc_lt_lc)
 		{ 
 		$state = 'blockcomment';
 		$filtered_text .= $string_prior_to_block_comment;
-		$text = '\*' . $string_after_block_comment;
+		$text = '/*' . $string_after_block_comment;
 		}
 
 	elsif($q_lt_lc and $q_lt_bc)
@@ -1918,7 +2093,7 @@ my $could_be_quote;
 	{
 	# strip out everything from here to the next */ pattern
 	( $comment_string, $string_after_comment)
-		= split( /\*\\/ , $text, 2  );
+		= split( /\*\// , $text, 2  );
 
 	$comment_string =~ s/[^\n]//g;
 
@@ -1940,11 +2115,6 @@ my $could_be_quote;
 	}
   }
 
- ###################
- # make everything lower case, VHDL identifiers are case insensitive
- ###################
- ### $filtered_text = lc($filtered_text);  
-  ## well, maybe this isn't such a good solution after all.
 
  return $filtered_text;
 
@@ -1962,6 +2132,9 @@ sub Filename
 	my $filename = shift;
  	my $text = $obj->filename_to_text($filename);
  	$text = $obj->decomment_given_text($text);
+
+print "decommented text = \n$text \n";
+
  	$obj->design_file($text);
 	}
 }
@@ -2000,7 +2173,7 @@ __END__
 
 =head1 NAME
 
-Hardware::Verilog::Parser - Perl extension for parsing Verilog code
+Hardware::Verilog::Parser - A complete grammar for parsing Verilog code using perl
 
 =head1 SYNOPSIS
 
@@ -2013,7 +2186,7 @@ Hardware::Verilog::Parser - Perl extension for parsing Verilog code
 
 This module defines the complete grammar needed to parse any Verilog code.
 By overloading this grammar, it is possible to easily create perl scripts
-which run through VHDL code and perform specific functions.
+which run through Verilog code and perform specific functions.
 
 This module is currently in PRE-RELEASE state, and subject to
 change without notice. Once the grammar is ironed out, I hope
@@ -2023,16 +2196,16 @@ to declare it relatively stable.
 
 Greg London  greg42@bellatlantic.net
 
-##################################################################
-# Copyright (C) 2000 Greg London   All Rights Reserved.
-# This program is free software; you can redistribute it and/or
-# modify it under the same terms as Perl itself.
-##################################################################
+Copyright (C) 2000 Greg London   All Rights Reserved.
+
+This program is free software; you can redistribute it and/or
+modify it under the same terms as Perl itself.
 
 =head1 SEE ALSO
 
-perl(1).
 Parse::RecDescent
+
+perl(1).
 
 =cut
 
