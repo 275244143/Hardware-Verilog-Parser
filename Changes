@@ -21,3 +21,17 @@ Revision history for Perl extension Hardware::Verilog::Parser.
 0.06  9 Feb 2000
 	fixed some grammar rules
 	can now handle `include, `define, `undef directives
+
+0.07  18 Feb 2000
+	got rid of all leftop constructs in rules.
+	Added Hardware::Verilog::StdLogic.pm module to 
+		evaluate constant expressions.
+
+	
+
+
+
+
+
+
+

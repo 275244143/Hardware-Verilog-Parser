@@ -8,10 +8,11 @@
 ##################################################################
 package Hardware::Verilog::Parser;
 use Parse::RecDescent;
+use Hardware::Verilog::StdLogic;
 @ISA = ( 'Parse::RecDescent' );
 ##################################################################
 use vars qw ( $VERSION  @ISA);
-$VERSION = '0.06';
+$VERSION = '0.07';
 ##################################################################
 
 ##################################################################
@@ -99,6 +100,28 @@ sub grammar
 
 return  q{
 
+	#### autoaction here
+	{
+
+	my $junk;
+	my @junk;
+	my %junk;
+	my %verilog_net;
+	my %verilog_reg;
+	my %verilog_port;
+	my %verilog_input;
+	my %verilog_inout;
+	my %verilog_output;
+	my %verilog_msb;
+	my %verilog_lsb;
+
+
+
+
+	}
+	#### end of autoaction
+
+
 	eofile : /^\Z/
 
 ###############################
@@ -110,25 +133,74 @@ design_file :
 
 design_unit : 
         module_declaration | udp_declaration
-	| <error>
 
 module_declaration : 
-        module_keyword
+        module_keyword 
+	<commit>
+
+	{
+	%verilog_port = (); 
+	%verilog_net = (); 
+	%verilog_reg = (); 
+	%verilog_input = (); 
+	%verilog_inout = (); 
+	%verilog_output = (); 
+	%verilog_msb = (); 
+	%verilog_lsb = (); 
+	1; 
+	}
+
         module_declaration_identifier
         list_of_ports(?)
         ';'
         module_item(s?)
         'endmodule'
-	| <error>
+
+	{
+	print "module $item{module_declaration_identifier} \n";
+	print "contained the following wires:\n";
+	@junk = keys(%verilog_net);
+	@junk = sort(@junk);
+	foreach $junk (@junk)
+		{
+		print "\t$junk";
+		if (defined($verilog_msb{$junk}))
+			{ print ' [ '.$verilog_msb{$junk}.' : '.$verilog_lsb{$junk}.' ] ';}
+		print "\n";
+		}
+	print "\n\n";
+
+	print "contained the following regs:\n";
+	@junk = keys(%verilog_reg);
+	@junk = sort(@junk);
+	foreach $junk (@junk)
+		{
+		print "\t$junk";
+		if (defined($verilog_msb{$junk}))
+			{ print ' [ '.$verilog_msb{$junk}.' : '.$verilog_lsb{$junk}.' ] ';}
+		print "\n";
+		}
+	print "\n\n";
+	1;
+	}
+
+	| <error?>
 
 module_keyword : 
         'module'  |  'macromodule'
 
 list_of_ports : 
         '(' 
-        one_or_more_ports_separated_by_commas 
+        port_comma_port 
         ')'
-	| <error>
+
+port_comma_port :
+	port
+	comma_port(s?)
+
+comma_port :
+	','
+	port
 
 port : 
         optional_port_expression |
@@ -146,11 +218,37 @@ optional_port_expression :
         port_expression(?)
 
 port_expression : 
-        one_or_more_port_references_separated_by_commas
+        port_reference_comma_port_reference
+
+port_reference_comma_port_reference :
+	port_reference
+	comma_port_reference(s?)
+
+comma_port_reference :
+	','
+	port_reference
 
 port_reference : 
-        port_identifier
+        declare_port_identifier
         port_bit_selection_or_bit_slice(?)
+
+declare_port_identifier :
+	port_identifier
+	{ 
+	if(exists($verilog_port{$item{port_identifier}}))
+		{
+		$junk[0] = $item{port_identifier};
+		$return = undef;
+		undef;
+		}
+	else
+		{
+		$verilog_port{$item{port_identifier}} = 1;
+		1; 
+		}
+	}
+	| <error: redeclaring port "$junk[0]">
+
 
 port_bit_selection_or_bit_slice :
         bit_selection_or_bit_slice(?)
@@ -166,7 +264,6 @@ module_item :
 	specify_block | 
 	initial_construct | 
 	always_construct
-	| <error>
 
 module_item_declaration :
         parameter_declaration | 
@@ -182,12 +279,21 @@ module_item_declaration :
         event_declaration | 
         task_declaration | 
         function_declaration
-	| <error>
 
 parameter_override :
         'defparam'
-        one_or_more_parameter_assignments_serparated_by_commas
+	<commit>
+        parameter_assignment_comma_parameter_assignment
         ';'
+	| <error?>
+
+parameter_assignment_comma_parameter_assignment :
+	parameter_assignment
+	comma_parameter_assignment(s?)
+
+comma_parameter_assignment :
+	','
+	parameter_assignment
 
 ###################################################################
 # declarations
@@ -196,8 +302,10 @@ parameter_override :
 
 parameter_declaration :  
         'parameter' 
-        one_or_more_parameter_assignments_serparated_by_commas
+	<commit>
+        parameter_assignment_comma_parameter_assignment
         ';'
+	| <error?>
 
 parameter_assignment : 
         parameter_identifier
@@ -206,59 +314,191 @@ parameter_assignment :
 
 input_declaration :
         'input'
+	<commit>
         range(?)
-        list_of_port_identifiers
+        direction_port_identifier_list[$item[1],@{$item{range}->[0]}]
         ';'
+	| <error?>
 
 output_declaration :
         'output'
+	<commit>
         range(?)
-        list_of_port_identifiers
-        ';'
+        direction_port_identifier_list[$item[1],@{$item{range}->[0]}]
+       ';'
+	| <error?>
 
 inout_declaration :
         'inout'
+	<commit>
         range(?)
-        list_of_port_identifiers
-        ';'
+        direction_port_identifier_list[$item[1],@{$item{range}->[0]}]
+       ';'
+	| <error?>
 
 
-list_of_port_identifiers :
-        one_or_more_port_identifiers_separated_by_commas
+direction_port_identifier_list :
+	direction_port_identifier[@arg]
+	comma_direction_port_identifier[@arg](s?)
+
+comma_direction_port_identifier :
+	','
+	<commit>
+	direction_port_identifier[@arg]
+	| <error?>
+
+direction_port_identifier :
+	port_identifier
+	{
+	$verilog_msb{$item{port_identifier}} = $arg[1];
+	$verilog_lsb{$item{port_identifier}} = $arg[2];
+	if ($arg[0] eq 'input')
+		{
+		if(exists($verilog_input{$item{port_identifier}}))
+			{
+			$junk{'direction'} = 'input';
+			$junk{'name'} = $item{port_identifier};
+			undef;
+			}
+		else
+			{
+			$verilog_input{$item{port_identifier}} = 1;
+			$verilog_net{$item{port_identifier}} = 1;
+			1; 
+			}
+		}
+
+	elsif ($arg[0] eq 'inout')
+		{
+		if(exists($verilog_inout{$item{port_identifier}}))
+			{
+			$junk{'direction'} = 'inout';
+			$junk{'name'} = $item{port_identifier};
+			undef;
+			}
+		else
+			{
+			$verilog_inout{$item{port_identifier}} = 1;
+			$verilog_net{$item{port_identifier}} = 1;
+			1; 
+			}
+		}
+
+	elsif ($arg[0] eq 'output')
+		{
+		if(exists($verilog_output{$item{port_identifier}}))
+			{
+			$junk{'direction'} = 'output';
+			$junk{'name'} = $item{port_identifier};
+			undef;
+			}
+		else
+			{
+			$verilog_output{$item{port_identifier}} = 1;
+			$verilog_net{$item{port_identifier}} = 1;
+			1; 
+			}
+		}
+
+
+	}
+	| <error: redeclaring $junk{'direction'} "$junk{'name'}">
 
 
 
 reg_declaration :  
         'reg'
-        range(?) 
-        one_or_more_register_names_separated_by_commas
+ 	<commit>
+       range(?) 
+        declare_register_name_comma_declare_register_name
         ';'
+	| <error?>
 
 time_declaration :  
         'time'
-        one_or_more_register_names_separated_by_commas
+	<commit>
+        declare_register_name_comma_declare_register_name
         ';'
 
 integer_declaration :  
-        'time'
-        one_or_more_register_names_separated_by_commas
+        'integer'
+ 	<commit>
+       declare_register_name_comma_declare_register_name
         ';'
+	| <error?>
+
+declare_register_name_comma_declare_register_name :
+	declare_register_name
+	comma_declare_register_name(s?)
+
+comma_declare_register_name :
+	','
+	<commit>
+	declare_register_name
+	| <error?>
+
+declare_register_name :
+	register_name
+	{ 
+	if(exists($verilog_reg{$item{register_name}}))
+		{
+		$junk{register_name} = $item{register_name};
+		$return = undef;
+		undef;
+		}
+	else
+		{
+		$verilog_reg{$item{register_name}} = 1;
+		# if it was a port, remove it from the list of nets.
+		if(exists($verilog_port{$item{register_name}}))
+			{
+			delete($verilog_net{$item{register_name}});
+			}
+		1; 
+		}
+	}
+	| <error: redeclaring reg "$junk{register_name}">
 
 real_declaration :  
         'real'
-        one_or_more_real_identifiers_separated_by_commas
+	<commit>
+        real_identifier_comma_real_identifier
         ';'
+	| <error?>
+
+real_identifier_comma_real_identifier :
+	real_identifier
+	comma_real_identifier(s?)
+
+comma_real_identifier :
+	','
+	<commit>
+	real_identifier
+	| <error?>
 
 realtime_declaration :  
         'realtime'
-        one_or_more_real_identifiers_separated_by_commas
+	<commit>
+        real_identifier_comma_real_identifier
         ';'
+	| <error?>
 
 event_declaration :
 	'event'
-	 one_or_more_event_identifiers_separated_by_commas
+	<commit>
+	 event_identifier_comma_event_identifier
         ';'
+	| <error?>
 
+event_identifier_comma_event_identifier :
+	event_identifier
+	comma_event_identifier(s?)
+
+comma_event_identifier :
+	','
+	<commit>
+	event_identifier
+	| <error?>
 
 register_name : 
         register_identifier | 
@@ -266,11 +506,17 @@ register_name :
 
 range :
         '[' 
+	<commit>
         msb_constant_expression 
         ':'  
         lsb_constant_expression 
         ']'
-
+	{
+	my $msb = $item{msb_constant_expression};
+	my $lsb = $item{lsb_constant_expression};
+	$return = [ $msb->numeric , $lsb->numeric ];
+	}
+	| <error?>
 
 msb_constant_expression :
 	constant_expression
@@ -285,29 +531,72 @@ net_declaration :
 
 net_type_vectored_scalared_range_delay3_list_of_net_identifiers : 
         net_type
+	<commit>
         vectored_or_scalared(?)
         range(?)
         delay3(?)
-        one_or_more_net_identifiers_separated_by_commas
+        declaring_net_identifier_comma_declaring_net_identifier
         ';'
+	| <error?>
+
+declaring_net_identifier_comma_declaring_net_identifier :
+	declaring_net_identifier
+	comma_declaring_net_identifier(s?)
+
+comma_declaring_net_identifier :
+	','
+	<commit>
+	declaring_net_identifier
+	| <error?>
+
+declaring_net_identifier : 
+	net_identifier
+	{ 
+	if(exists($verilog_net{$item{net_identifier}}))
+		{
+		$junk[0] = $item{net_identifier};
+		$return = undef;
+		undef;
+		}
+	else
+		{
+		$verilog_net{$item{net_identifier}} = 1;
+		1; 
+		}
+	}
+	| <error: redeclaring net "$junk[0]">
 
 trireg_vectored_scalared_charge_strength_range_delay3_list_of_net : 
         'trireg'
+	<commit>
         vectored_or_scalared(?)
         charge_strength(?)
         range(?)
         delay3(?)                
-        one_or_more_net_identifiers_separated_by_commas
+        declaring_net_identifier_comma_declaring_net_identifier
         ';'
+	| <error?>
 
 net_type_vectored_scalared_drive_strength_range_delay3_list_of_net_decl :
         net_type
+	<commit>
         vectored_or_scalared(?)
         drive_strength(?)
         range(?)
         delay3(?)
-        one_or_more_net_decl_assignments_separated_by_commas
+        net_decl_assignment_comma_net_decl_assignment
         ';'
+	| <error?>
+
+net_decl_assignment_comma_net_decl_assignment :
+	net_decl_assignment
+	comma_net_decl_assignment(s?)
+
+comma_net_decl_assignment :
+	','
+	<commit>
+	net_decl_assignment
+	| <error?>
 
 vectored_or_scalared :
 	'vectored' | 'scalared'
@@ -411,12 +700,14 @@ net_decl_assignment :
 
 function_declaration : 
         'function'
+	<commit>
         range_or_type(?)
         function_identifier 
         ';'
         function_item_declaration(s)
         statement
         'endfunction'
+	| <error?>
 
 range_or_type :
 	range  |  'integer'  |  'real'  |  'realtime'  |  'time'
@@ -427,11 +718,13 @@ function_item_declaration :
 
 task_declaration : 
         'task'
+	<commit>
         task_identifier
         ';'
         task_item_declaration(s?)
         statement_or_null
         'endtask'
+	| <error?>
 
 task_item_declaration : 
         block_item_declaration | 
@@ -469,73 +762,192 @@ gate_instantiation :
 
 n_input_gatetype_drive_strength_delay2_n_input_gate_instance :
         n_input_gatetype
+	<commit>
         drive_strength(?)
         delay2(?)
-        one_or_more_n_input_gate_instance_separated_by_commas
+        n_input_gate_instance_comma_n_input_gate_instance
         ';'
+	| <error?>
+
+n_input_gate_instance_comma_n_input_gate_instance : 
+	n_input_gate_instance
+	comma_n_input_gate_instance(s?)
+
+comma_n_input_gate_instance : 
+	','
+	<commit>
+	n_input_gate_instance
+	| <error?>
 
 n_output_gatetype_drive_strength_delay2_n_output_gate_instance : 
         n_output_gatetype
+	<commit>
         drive_strength(?)
         delay2(?)
-        one_or_more_n_output_gate_instance_separated_by_commas
+        n_output_gate_instance_comma_n_output_gate_instance
         ';'
+	| <error?>
+
+n_output_gate_instance_comma_n_output_gate_instance :
+	n_output_gate_instance
+	comma_n_output_gate_instance(s?)
+
+comma_n_output_gate_instance :
+	','
+	<commit>
+	n_output_gate_instance
+	| <error?>
 
 enable_gatetype_drive_strength_delay3_enable_gate_instance : 
         enable_gatetype
+	<commit>
         drive_strength(?)
         delay3(?)
-        one_or_more_enable_gate_instance_separated_by_commas
+        enable_gate_instance_comma_enable_gate_instance
         ';'
+	| <error?>
+
+enable_gate_instance_comma_enable_gate_instance :
+	enable_gate_instance
+	comma_enable_gate_instance(s?)
+
+comma_enable_gate_instance :
+	','
+	<commit>
+	enable_gate_instance
+	| <error?>
 
 mos_switchtype_delay3_mos_switch_instance :
         mos_switchtype
+	<commit>
         delay3(?)
-        one_or_more_mos_switch_instance_separated_by_commas
+        mos_switch_instance_comma_mos_switch_instance
         ';'
+	| <error?>
+
+mos_switch_instance_comma_mos_switch_instance :
+	mos_switch_instance
+	comma_mos_switch_instance(s?)
+
+comma_mos_switch_instance :
+	','
+	<commit>
+	mos_switch_instance
+	| <error?>
 
 pass_switchtype_pass_switch_instance : 
         pass_switchtype
-        one_or_more_pass_switch_instance_separated_by_commas
+	<commit>
+        pass_switch_instance_comma_pass_switch_instance
         ';'
+	| <error?>
+
+pass_switch_instance_comma_pass_switch_instance :
+	pass_switch_instance
+	comma_pass_switch_instance(s?)
+
+comma_pass_switch_instance :
+	','
+	<commit>
+	pass_switch_instance
+	| <error?>
 
 pass_en_switchtype_delay3_pass_enable_switch_instance : 
         pass_en_switchtype
+	<commit>
         delay3(?)
-        one_or_more_pass_enable_switch_instance_separated_by_commas
+        pass_enable_switch_instance_comma_pass_enable_switch_instance
         ';'
+	| <error?>
+
+pass_enable_switch_instance_comma_pass_enable_switch_instance :
+	pass_enable_switch_instance 
+	comma_pass_enable_switch_instance(s?)
+
+comma_pass_enable_switch_instance : 
+	','
+	<commit>
+	pass_enable_switch_instance
+	| <error?>
 
 cmos_switchtype_delay3_cmos_switch_instance : 
         cmos_switchtype
+ 	<commit>
         delay3(?)
-        one_or_more_cmos_switch_instance_separated_by_commas
+        cmos_switch_instance_comma_cmos_switch_instance
         ';'
+	| <error?>
+
+cmos_switch_instance_comma_cmos_switch_instance : 
+	cmos_switch_instance
+	comma_cmos_switch_instance(s?)
+
+comma_cmos_switch_instance :
+	','
+	<commit>
+	cmos_switch_instance
+	| <error?>
+
 
 pullup_pullup_strength_pull_gate_instance : 
         'pullup'
+	<commit>
         pullup_strength(?)
-        one_or_more_pull_gate_instance_seperated_by_commas
+        pull_gate_instance_comma_pull_gate_instance
         ';'
+	| <error?>
+
+pull_gate_instance_comma_pull_gate_instance :
+	pull_gate_instance
+	comma_pull_gate_instance(s?)
+
+comma_pull_gate_instance :
+	','
+	<commit>
+	pull_gate_instance
+	| <error?>
 
 pulldown_pulldown_strength_pull_gate_instance : 
         'pulldown'
+	<commit>
         pulldown_strength(?)
-        one_or_more_pull_gate_instance_seperated_by_commas
+        pull_gate_instance_comma_pull_gate_instance
         ';'
+	| <error?>
 
 n_input_gate_instance : 
         name_of_gate_instance(?) 
         '('
          output_terminal ','
-         one_or_more_input_terminals_separated_by_commas ','
+         input_terminal_comma_input_terminal ','
         ')'
+
+input_terminal_comma_input_terminal :
+	input_terminal
+	comma_input_terminal(s?)
+
+comma_input_terminal :
+	','
+	<commit>
+	input_terminal
+	| <error?>
 
 n_output_gate_instance : 
         name_of_gate_instance(?) 
         '('
-        one_or_more_output_terminals_separated_by_commas ','
+        output_terminal_comma_output_terminal ','
         input_terminal
         ')'
+
+output_terminal_comma_output_terminal :
+	output_terminal
+	comma_output_terminal(s?)
+
+comma_output_terminal :
+	','
+	<commit>
+	output_terminal
+	| <error?>
 
 enable_gate_instance : 
         name_of_gate_instance(?) 
@@ -661,42 +1073,59 @@ module_instantiation :
         parameter_value_assignment(?)
         module_instance(s)
 	';'
-	| <error>
 
 parameter_value_assignment :
         '#' 
-        '(' 
-        one_or_more_expressions_separated_by_commas 
+ 	<commit>
+       '(' 
+        expression_comma_expression 
         ')' 
-	| <error>
+	| <error?>
 
 module_instance :  
         name_of_instance  
         '('
         list_of_module_connections(?)
         ')'
-	| <error>
 
 
 name_of_instance : 
          module_instance_identifier
         range(?)
-	| <error>
 
 list_of_module_connections :
-	  one_or_more_named_port_connections_separated_by_commas 
-	| one_or_more_ordered_port_connections_separated_by_commas 
-	| <error>
+	  named_port_connection_comma_named_port_connection 
+	| ordered_port_connection_comma_ordered_port_connection 
+
+ordered_port_connection_comma_ordered_port_connection :
+	ordered_port_connection
+	comma_ordered_port_connection(s?)
+
+comma_ordered_port_connection :
+	','
+	<commit>
+	ordered_port_connection
+	| <error?>
+
+named_port_connection_comma_named_port_connection :
+	named_port_connection
+	comma_named_port_connection(s?)
+
+comma_named_port_connection :
+	','
+	<commit>
+	named_port_connection
+	| <error?>
 
 ordered_port_connection :  
         expression(?)
-	| <error>
 
 named_port_connection :
         '.' 
+	<commit>
         port_identifier
         '(' port_expression ')'
-	| <error>
+	| <error?>
 
 
 
@@ -706,15 +1135,27 @@ named_port_connection :
 
 udp_declaration : 
         'primitive'
+	<commit>
         udp_identifier 
         '(' udp_port_list ')' ';'
         udp_port_declaration(s)
         udp_body
         'endprimitive'
+	| <error?>
 
 udp_port_list :  
         output_port_identifier ','
-        one_or_more_input_port_identifier_separated_by_commas
+        input_port_identifier_comma_input_port_identifier
+
+input_port_identifier_comma_input_port_identifier :
+	input_port_identifier
+	comma_input_port_identifier(s?)
+
+comma_input_port_identifier :
+	','
+	<commit>
+	input_port_identifier
+	| <error?>
 
 udp_port_declaration : 
           output_declaration 
@@ -728,8 +1169,10 @@ udp_body :
 
 combinational_body : 
         'table' 
+ 	<commit>
         combinational_entry(s) 
         'endtable'
+	| <error?>
 
 combinational_entry :
         level_input_list ':' output_symbol ';'
@@ -737,15 +1180,19 @@ combinational_entry :
 sequential_body :
         udp_initial_statement(?)
         'table' 
+	<commit>
         sequential_entry(s)
         'endtable'
+	| <error?>
 
 udp_initial_statement :  
         'initial' 
+	<commit>
         udp_output_port_identifier 
         '=' 
         init_val
         ';'
+	| <error?>
 
 init_val : 
           "1'b0" | "1'b1" | "1'bx" | "1'bX " | 
@@ -753,7 +1200,11 @@ init_val :
           '1' | '0' 
 
 sequential_entry :  
-        seq_input_list ':' current_state ':' next_state
+        seq_input_list 
+	':' 
+	current_state 
+	':' 	
+	next_state
 
 
 seq_input_list :  
@@ -792,15 +1243,35 @@ udp_instantiation :
         udp_identifier
         drive_strength(?)
         delay2(?)
-        one_or_more_udp_instances_separated_by_commas
+        udp_instance_comma_udp_instance
         ';'
+
+udp_instance_comma_udp_instance :
+	udp_instance
+	comma_udp_instance(s?)
+
+comma_udp_instance :
+	','
+	<commit>
+	udp_instance
+	| <error?>
 
 udp_instance :
         name_of_udp_instance(?)
         '('
         output_port_connection ','
-        one_or_more_input_port_connections_separated_by_commas
+        input_port_connection_comma_input_port_connection
         ';'
+
+input_port_connection_comma_input_port_connection :
+	input_port_connection
+	comma_input_port_connection
+
+comma_input_port_connection :
+	','
+	<commit>
+	input_port_connection
+	| <error?>
 
 name_of_udp_instance :
 	udp_instance_identifier
@@ -823,19 +1294,37 @@ output_port_connection :
 
 continuous_assignment : 
         'assign'
+	<commit>
         drive_strength(?)
         delay3(?)
-        one_or_more_net_assignments_separated_by_commas
+        net_assignment_comma_net_assignment
         ';'
+	| <error?>
+
+net_assignment_comma_net_assignment :
+	net_assignment
+	comma_net_assignment(s?)
+
+comma_net_assignment :
+	','
+	<commit>
+	net_assignment
+	| <error?>
 
 net_assignment : 
         net_lvalue '=' expression
 
 initial_construct : 
-        'initial' statement
+        'initial'
+	<commit>
+	statement
+	| <error?>
 
 always_construct : 
-        'always' statement
+        'always' 
+	<commit>
+	statement
+	| <error?>
 
 statement :
 	  procedural_timing_control_statement 
@@ -852,17 +1341,18 @@ statement :
 	| system_task_enable
 	| blocking_assignment_with_semicolon
 	| non_blocking_assignment_with_semicolon 
-	| <error>
 
 blocking_assignment_with_semicolon :
-	blocking_assignment ';'
+	blocking_assignment 
+	';'
 
 non_blocking_assignment_with_semicolon :
-	non_blocking_assignment ';'
-	| <error>
+	non_blocking_assignment 
+	';'
 
 procedural_continuous_assignment_with_semicolon :
-	procedural_continuous_assignment ';'
+	procedural_continuous_assignment 
+	';'
 
 statement_or_null : 
         statement | ';'
@@ -872,15 +1362,18 @@ statement_or_null :
 blocking_assignment :
         reg_lvalue 
         '='
+	<commit>
         delay_or_event_control(?)
         expression
+	| <error?>
 
 non_blocking_assignment :
         reg_lvalue 
         '<='
+	<commit>
         delay_or_event_control(?)
         expression
-	| <error>
+	| <error?>
 
 
 procedural_continuous_assignment :
@@ -892,43 +1385,56 @@ procedural_continuous_assignment :
 	| release_net_lvalue 
 
 assign_reg_assignment :
-        'assign' reg_assignment ';'
+        'assign' 
+	<commit>
+	reg_assignment ';'
+	| <error?>
 
 deassign_reg_lvalue :
-        'deassign' reg_lvalue ';'
+        'deassign' 
+	<commit>
+	reg_lvalue ';'
+	| <error?>
 
 force_reg_assignment :
-        'force' reg_assignment ';'
+        'force' 
+	reg_assignment ';'
 
 force_net_assignment :
-        'force' net_assignment ';'
+        'force' 
+	net_assignment ';'
 
 release_reg_lvalue :
-        'release' reg_lvalue ';'
+        'release' 
+	reg_lvalue ';'
 
 release_net_lvalue :
-        'release' net_lvalue ';'
+        'release' 
+	net_lvalue ';'
 
 procedural_timing_control_statement : 
         delay_or_event_control 
         statement_or_null
-	| <error>
 
 delay_or_event_control : 
           delay_control
         | event_control
         | repeat_expression_event_control
-	| <error>
 
 repeat_expression_event_control :
 	'repeat'
+	<commit>
 	'('
 	expression
 	')'
 	event_control
+	| <error?>
 
 delay_control :
-	'#' delay_value_or_mintypmax_expression_in_paren                
+	'#' 
+	<commit>
+	delay_value_or_mintypmax_expression_in_paren                
+	| <error?>
 
 delay_value_or_mintypmax_expression_in_paren :
 	delay_value | mintypmax_expression_in_paren
@@ -937,7 +1443,10 @@ mintypmax_expression_in_paren :
 	 '(' mintypmax_expression ')'
 
 event_control :
-	'@' event_identifier_or_event_expression_list_in_paren
+	'@' 
+	<commit>
+	event_identifier_or_event_expression_list_in_paren
+	| <error?>
 
 event_identifier_or_event_expression_list_in_paren :
 	  event_expression_list_in_paren
@@ -949,7 +1458,10 @@ event_expression_list_in_paren :
 	')'
 
 or_event_expression :
-	'or' event_expression
+	'or' 
+	<commit>
+	event_expression
+	| <error?>
 
 event_expression : 
 	  posedge_expression 
@@ -959,21 +1471,30 @@ event_expression :
 
 posedge_expression :
         'posedge' 
+	<commit>
         expression
+	| <error?>
 
 negedge_expression :
         'negedge' 
+	<commit>
         expression
+	| <error?>
 
 
 conditional_statement : 
-        'if' '(' expression ')'
+        'if' 
+	<commit>
+	'(' expression ')'
         statement_or_null 
         else_statement_or_null(?)
+	| <error?>
 
 else_statement_or_null :
         'else'
+	<commit>
         statement_or_null
+	| <error?>
 
 
 case_statement : 
@@ -982,13 +1503,22 @@ case_statement :
 	| case_endcase  
 
 case_endcase :
-        'case' expression_case_item_list 'endcase'
+        'case' 
+	<commit>
+	expression_case_item_list 'endcase'
+	| <error?>
 
 casez_endcase :
-        'casez' expression_case_item_list 'endcase'
+        'casez' 
+	<commit>
+	expression_case_item_list 'endcase'
+	| <error?>
 
 casex_endcase :
-        'casex' expression_case_item_list 'endcase'
+        'casex' 
+	<commit>
+	expression_case_item_list 'endcase'
+	| <error?>
 
 expression_case_item_list :
         '(' expression ')' case_item(s)
@@ -998,14 +1528,16 @@ case_item :
 	| expression_list_statement_or_null 
 
 expression_list_statement_or_null : 
-        one_or_more_expressions_separated_by_commas 
+        expression_comma_expression 
         ':'
         statement_or_null
 
 default_statement_or_null : 
         'default' 
+	<commit>
         ':'
         statement_or_null
+	| <error?>
 
 
 loop_statement : 
@@ -1016,24 +1548,34 @@ loop_statement :
 
 forever_statement :
         'forever'
+ 	<commit>
         statement
+	| <error?>
 
 repeat_expression_statement : 
         'repeat'
+	<commit>
         '(' expression ')'
         statement 
+	| <error?>
 
 while_expression_statement : 
         'while'
+	<commit>
         '(' expression ')'
         statement
+	| <error?>
 
 for_reg_assignment_expression_reg_assignment_statement :
-        'for' '(' 
+        'for' 
+	<commit>
+	'(' 
         reg_assignment ';'
         expression ';'
-        reg_assignment ')'
+        reg_assignment 
+	')'
         statement
+	| <error?>
 
 
 reg_assignment : 
@@ -1041,34 +1583,47 @@ reg_assignment :
 
 wait_statement : 
         'wait' 
+	<commit>
         '(' 
         expression 
         ')' 
         statement_or_null
+	| <error?>
 
 event_trigger : 
-        '->' event_identifier ';'
+        '->' 
+	<commit>
+	event_identifier ';'
+	| <error?>
 
 disable_statement : 
         'disable' 
-        ( task_identifier | block_identifer ) 
+ 	<commit>
+       ( task_identifier | block_identifer ) 
         ';'                
+	| <error?>
 
 seq_block : 
         'begin' 
+	<commit>
         block_identifier_block_item_declaration(?)      
         statement(s?)
         'end'
+	| <error?>
 
 par_block : 
         'fork' 
+	<commit>
         block_identifier_block_item_declaration(?)      
         statement(s?)
         'join'
+	| <error?>
 
 block_identifier_block_item_declaration :
 	':'
+	<commit>
 	block_item_declaration(s?)
+	| <error?>
 
 task_enable : 
         task_identifier
@@ -1077,7 +1632,7 @@ task_enable :
 
 expression_list_in_paren :
         '('
-        one_or_more_expressions_separated_by_commas
+        expression_comma_expression
         ')'
 
 system_task_enable :
@@ -1098,8 +1653,10 @@ system_task_name :
 
 specify_block :
         'specify'
+	<commit>
         specify_item(?)
         'endspecify'
+	| <error?>
 
 specify_item :
 	  specparam_declaration   
@@ -1108,8 +1665,20 @@ specify_item :
 
 specparam_declaration :
         'specparam'
-        one_or_more_specparam_assignments_separated_by_commas
+	<commit>
+        specparam_assignment_comma_specparam_assignment
         ';'
+	| <error?>
+
+specparam_assignment_comma_specparam_assignment :
+	specparam_assignment
+	comma_specparam_assignment(s?)
+
+comma_specparam_assignment :
+	','
+	<commit>
+	specparam_assignment
+	| <error?>
 
 specparam_assignment :
  	  specparam_identifier_equal_constant_expression  
@@ -1126,18 +1695,23 @@ pulse_control_specparam :
 
 pathpulse_reject_limit_value :
         'PATHPULSE$'
-        '='
+ 	<commit>
+       '='
         '('
         reject_limit_value
         comma_erro_limit_value(?)
         ')' ';'
+	| <error?>
 
 comma_erro_limit_value :
         ','
+	<commit>
         error_limit_value
+	| <error?>
 
 pathpulse_specify_input_terminal_descriptor :
         'PATHPULSE$'
+	<commit>
         specify_input_terminal_descriptor
         '$'
         specify_output_terminal_descriptor
@@ -1146,6 +1720,7 @@ pathpulse_specify_input_terminal_descriptor :
         reject_limit_value
         comma_erro_limit_value(?)
         ')' ';'
+	| <error?>
 
 limit_value :
         constant_mintypmax_expression
@@ -1190,10 +1765,27 @@ full_path_description :
         ')'
 
 list_of_path_inputs :
-        one_or_more_specify_input_terminal_descriptors_separated_by_commas
+	specify_input_terminal_descriptor 
+	comma_specify_input_terminal_descriptor(s?)
+
+comma_specify_input_terminal_descriptor :
+	','
+	<commit>
+	specify_input_terminal_descriptor
+	| <error?>
 
 list_of_path_outputs :
-        one_or_more_specify_output_terminal_descriptors_separated_by_commas
+        specify_output_terminal_descriptor_comma_specify_output_terminal_descriptor
+
+specify_output_terminal_descriptor_comma_specify_output_terminal_descriptor :
+	specify_output_terminal_descriptor
+	comma_specify_output_terminal_descriptor(s?)
+
+comma_specify_output_terminal_descriptor :
+	','
+	<commit>
+	specify_output_terminal_descriptor
+	| <error?>
 
 specify_input_terminal_descriptor : 
         input_identifier 
@@ -1217,8 +1809,10 @@ polarity_operator :
 
 path_delay_value : 
         '('
+	<commit>
         list_of_path_delay_expressions
         ')'
+	| <error?>
 
 
 list_of_path_delay_expressions : 
@@ -1346,36 +1940,39 @@ edge_identifier :
         'posedge' | 'negedge'
 
 state_dependent_path_declaration : 
-	  if_conditional_expression_simple_path_declaration 
-	| if_conditional_expression_edge_sensitive_path_declaration 
-	| ifnone_simple_path_declaration 
+	  ifnone_simple_path_declaration 
+	| if_conditional_expression_simple_or_edge_path_declaration
 
-if_conditional_expression_simple_path_declaration :
+if_conditional_expression_simple_or_edge_path_declaration :
         'if' 
+	<commit>
         '(' conditional_expression ')'
-        simple_path_declaration 
+        simple_path_or_edge_sensitive_path_declaration 
+	| <error?>
 
-if_conditional_expression_edge_sensitive_path_declaration :
-        'if'
-        '(' conditional_expression ')'
-        edge_sensitive_path_declaration
+simple_path_or_edge_sensitive_path_declaration :
+          simple_path_declaration
+        | edge_sensitive_path_declaration
 
 ifnone_simple_path_declaration :
         'ifnone'
+	<commit>
         simple_path_declaration
+	| <error?>
 
 system_timing_check : 
-	  setup_timing_check  
+	  setuphold_timing_check  
 	| hold_timing_check  
 	| period_timing_check  
 	| width_timing_check  
 	| skew_timing_check   
 	| recovery_timing_check  
-	| setuphold_timing_check
+	| setup_timing_check
 
 
 setup_timing_check :
         '$setup'
+	<commit>
         '(' 
         timing_check_event ','
         timing_check_event ','
@@ -1383,9 +1980,11 @@ setup_timing_check :
         comma_notify_register(?)
         ')' 
         ';'
+	| <error?>
 
 hold_timing_check :
         '$hold'
+	<commit>
         '(' 
         timing_check_event ','
         timing_check_event ','
@@ -1393,18 +1992,22 @@ hold_timing_check :
         comma_notify_register(?)
         ')' 
         ';'
+	| <error?>
 
 period_timing_check :
         '$period'
+	<commit>
         '(' 
         controlled_timing_check_event ','
         timing_check_limit 
         comma_notify_register(?)
         ')' 
         ';'
+	| <error?>
 
 width_timing_check :
         '$width'
+	<commit>
         '(' 
         controlled_timing_check_event ','
         timing_check_limit ','
@@ -1412,9 +2015,11 @@ width_timing_check :
         comma_notify_register(?)
         ')' 
         ';'
+	| <error?>
 
 skew_timing_check :
         '$skew'
+	<commit>
         '(' 
         timing_check_event ','
         timing_check_event ','
@@ -1422,10 +2027,12 @@ skew_timing_check :
         comma_notify_register(?)
         ')' 
         ';'
+	| <error?>
 
 
 recovery_timing_check :
         '$recovery'
+	<commit>
         '(' 
         controlled_timing_check_event ','
         timing_check_event ','
@@ -1433,10 +2040,12 @@ recovery_timing_check :
         comma_notify_register(?)
         ')' 
         ';'
+	| <error?>
 
 
 setuphold_timing_check :
         '$setuphold'
+	<commit>
         '(' 
         timing_check_event ','
         timing_check_event ','
@@ -1445,9 +2054,13 @@ setuphold_timing_check :
         comma_notify_register(?)
         ')' 
         ';'
+	| <error?>
 
 comma_notify_register :
-         ',' notify_register
+         ',' 
+	<commit>
+	notify_register
+	| <error?>
 
 timing_check_event :
         timing_check_event_control(?)        
@@ -1455,7 +2068,10 @@ timing_check_event :
         ampersand_timing_check_condition(?)
 
 ampersand_timing_check_condition : 
-        '&&&' timing_check_condition
+        '&&&' 
+	<commit>
+	timing_check_condition
+	| <error?>
 
 specify_terminal_descriptor :
 	  specify_input_terminal_descriptor 
@@ -1463,8 +2079,10 @@ specify_terminal_descriptor :
 
 controlled_timing_check_event : 
         timing_check_event_control
+	<commit>
         specify_terminal_descriptor
         ampersand_timing_check_condition(?)
+	| <error?>
 
 timing_check_event_control :
 	  'posedge'  
@@ -1479,7 +2097,10 @@ edge_control_specifier :
         ']'
 
 comma_edge_descriptor : 
-        ',' edge_descriptor
+        ',' 
+	<commit>
+	edge_descriptor
+	| <error?>
 
 edge_descriptor :  
           '01' | '10' | '0x' | 'x1' | ' 1x' | 'x0'  
@@ -1492,27 +2113,46 @@ scalar_timing_check_condition_in_parens :
         '(' scalar_timing_check_condition ')'
 
 scalar_timing_check_condition : 
-	  expression  
-	| tilde_expression 
+	  tilde_expression 
+	| triple_equal_expression
 	| double_equal_expression
-	| triple_equal_expression 
-	| double_not_equal_expression 
 	| triple_not_equal_expression 
+	| double_not_equal_expression 
+	| expression  
 
 tilde_expression :
-        '~' expression
+        '~' 
+	<commit>
+	expression
+	| <error?>
 
 double_equal_expression :
-        expression '==' scalar_constant
+        expression 
+	'==' 
+	<commit>
+	scalar_constant
+	| <error?>
 
 triple_equal_expression :
-        expression '===' scalar_constant
+        expression 
+	'===' 
+	<commit>
+	scalar_constant
+	| <error?>
 
 double_not_equal_expression :
-        expression '!=' scalar_constant
+        expression 
+	<commit>
+	'!=' 
+	scalar_constant
+	| <error?>
 
 triple_not_equal_expression :
-        expression '!==' scalar_constant
+        expression 
+	<commit>
+	'!==' 
+	scalar_constant
+	| <error?>
 
 
 timing_check_limit : 
@@ -1531,23 +2171,41 @@ notify_register :
 # expressions
 ##############################################################
 
+expression_comma_expression : 
+	expression
+	comma_expression(s?)
+
+comma_expression :
+	','
+	<commit>
+	expression
+	| <error?>
+
 bit_selection_or_bit_slice :
 	'['
+	<commit>
 	expression
 	colon_expression(?)
 	']'
+	| <error?>
 
 colon_expression :
 	':'
+	<commit>
 	expression
+	| <error?>
 
 
 net_lvalue : 
 	  net_concatenation
 	| net_identifier_with_bit_selection
 
+
+# is there any difference between net_concatenation and reg_concatenation???
 net_concatenation : 
-        '{' one_or_more_expressions_separated_by_commas '}'
+        '{' 
+	expression_comma_expression 
+	'}'
 
 net_identifier_with_bit_selection :
         net_identifier
@@ -1560,7 +2218,7 @@ reg_lvalue :
 
 
 reg_concatenation : 
-        '{' one_or_more_expressions_separated_by_commas '}'
+        '{' expression_comma_expression '}'
 
 reg_identifier_with_bit_selection :
         register_identifier
@@ -1569,32 +2227,105 @@ reg_identifier_with_bit_selection :
 constant_expression : 
 	constant_bin_expr 
 	question_constant_expr_colon_constant_expr(?)
+	{
+	my $primary=$item{constant_bin_expr};
+	my $final = $primary;
+	my $rule_result = $item{question_constant_expr_colon_constant_expr};
+	if(defined($rule_result))
+		{
+		my $conditional_secondary = pop(@$rule_result);
+		if(defined($conditional_secondary))
+			{
+			my ($conditional, $secondary) = @$conditional_secondary;
+			if(defined($conditional))
+				{
+				$final = $primary->conditional_operator($conditional, $secondary);
+				}
+			}
+		}
+	$return = $final;
+	}
 
 question_constant_expr_colon_constant_expr :
-	 '?' 
+	'?' 
+	<commit>
 	constant_expression 
 	':' 
 	constant_expression 
+	{
+	my $first = $item[3];
+	my $secon = $item[5];
+	$return = [ $first, $secon ];
+	1;
+	}
+	| <error?>
 
 constant_bin_expr : 
 	constant_uni_expr 
 	binary_operator_constant_bin_expr(?)
+	{
+	my $left=$item{constant_uni_expr};
+	my $final = $left;
+	my $rule_result = $item{binary_operator_constant_bin_expr};
+	if(defined($rule_result))
+		{
+		my $binop_expr = pop(@$rule_result);
+		if(defined($binop_expr))
+			{
+			my ($binop, $right) = @$binop_expr;
+			if(defined($binop))
+				{
+				$final = $left->binary_operator($binop, $right);
+				}
+			}
+		}
+	$return = $final;
+	}
+	
 
 binary_operator_constant_bin_expr :
 	binary_operator
 	constant_bin_expr
+	{
+	my $op = $item{binary_operator};
+	my $ex = $item{constant_bin_expr};
+	$return = [ $op, $ex ];
+	1;
+	}
+
 
 constant_uni_expr : 
-	unary_operator(?) constant_primary 
+	optional_unary_operator 
+	constant_primary 
+	{
+	my $unary_operator = $item{optional_unary_operator};
+	my $obj = $item{constant_primary};
+	$return = $obj->unary_operator($unary_operator);
+	}
 
 
 constant_primary : 
-	  number  
-	| parameter_identifier  
-	| constant_concatenation  
+	  constant_replication	 
+	| number 		
+	| parameter_identifier	 
+	| constant_concatenation 
+
+constant_replication :
+	'{'
+	number
+	constant_concatenation
+	'}'
 
 constant_concatenation :
-        '{' one_or_more_constant_expressions_separated_by_commas '}'
+        '{' constant_expression_comma_constant_expression '}'
+
+constant_expression_comma_constant_expression :
+	constant_expression
+	comma_constant_expression(s?)
+
+comma_constant_expression :
+	','
+	constant_expression
 
 constant_mintypmax_expression :
         constant_expression 
@@ -1602,9 +2333,11 @@ constant_mintypmax_expression :
 
 colon_constant_expression_colon_constant_expression :
         ':'
+	<commit>
         constant_expression 
         ':'
         constant_expression 
+	| <error?>
 
 mintypmax_expression :        
         expression 
@@ -1617,6 +2350,10 @@ colon_expression_colon_expression :
         expression 
 
 expression : 
+	  string_literal 
+	| bin_expr_question_expr_colon_expr
+
+bin_expr_question_expr_colon_expr :
 	bin_expr 
 	question_expr_colon_expr(?)
 
@@ -1635,9 +2372,9 @@ binary_operator_bin_expr :
 	bin_expr
 
 uni_expr : 
-	unary_operator(?) primary 
+	optional_unary_operator primary 
 
-unary_operator : 
+optional_unary_operator : 
 	  '~|' 
 	| '~^' 
 	| '~&' 
@@ -1649,6 +2386,7 @@ unary_operator :
 	| '&' 
 	| '|' 
 	| '^' 
+	| { $return = '+'; 1;}
 
 binary_operator : 
 	  '===' 
@@ -1675,12 +2413,17 @@ binary_operator :
 	| '^' 
 
 primary : 
-	  number 
+	  replication
+	| number 
 	| identifier_bit_selection_or_bit_slice 
 	| concatenation 
 	| function_call  
 	| mintypmax_expression_in_paren 
-        
+ 
+replication :
+	number
+	concatenation
+      
 identifier_bit_selection_or_bit_slice :
         identifier  bit_selection_or_bit_slice(?) 
 
@@ -1695,7 +2438,7 @@ number :
 	| decimal_number  
 
 real_number : 
-        sign(?) 
+        optional_sign 
         ( two_unsigned_numbers_separated_by_decimal_point_with_exponent |
           two_unsigned_numbers_separated_by_decimal_point |
           unsigned_number_with_exponent
@@ -1706,49 +2449,85 @@ two_unsigned_numbers_separated_by_decimal_point :
         /[0-9_].*\.[0-9_].*/
 
 unsigned_number_with_exponent :
-        unsigned_number ( 'e' | 'E' ) sign(?) unsigned_number
+        unsigned_number ( 'e' | 'E' ) optional_sign unsigned_number
 
 two_unsigned_numbers_separated_by_decimal_point_with_exponent : 
         two_unsigned_numbers_separated_by_decimal_point
-         ( 'e' | 'E' ) sign(?) unsigned_number
+         ( 'e' | 'E' ) optional_sign unsigned_number
 
 decimal_number : 
 	  size_decimal_base_unsigned_number 
-	| sign_unsigned_number
+	| sign_unsigned_number 
 
 sign_unsigned_number :
-        sign(?) 
+        optional_sign 
 	unsigned_number
+	
+		{
+		my $obj = Hardware::Verilog::StdLogic->new($item[2]);
+		# $obj = $obj->minus;
+		$return = $obj;
+		}
+
+
+optional_sign :
+	  '-' {$return = '-';}
+	| '+' {$return = '+';}
+	|     {$return = '+';}
 
 size_decimal_base_unsigned_number :
         size(?) 
 	decimal_base 
+	<commit>
 	unsigned_number
+
+		{
+		$return = Hardware::Verilog::StdLogic->new($item[1]->[0] . $item[2] . $item[4] );
+		}
+
+	| <error?>
 
 binary_number : 
 	size(?)  
         binary_base 
-        one_or_more_binary_digits_separated_by_optional_underscore
+	<commit>
+        binary_digits
+
+		{
+		$return = Hardware::Verilog::StdLogic->new($item[1]->[0] . $item[2] . $item[4] );
+		}
+
+	| <error?>
 
 octal_number : 
 	size(?) 
         octal_base 
-        one_or_more_octal_digits_separated_by_optional_underscore
+	<commit>
+        octal_digits
+		{
+		$return = Hardware::Verilog::StdLogic->new($item[1]->[0] . $item[2] . $item[4] );
+		}
+	| <error?>
 
 
 hex_number : 
         size(?) 
         hex_base 
-        one_or_more_hex_digits_separated_by_optional_underscore
+	<commit>
+        hex_digits
+		{
+		$return = Hardware::Verilog::StdLogic->new($item[1]->[0] . $item[2] . $item[4] );
+		}
 
-sign :
-        '+' | '-'
+
+
+	| <error?>
 
 size : 
 	unsigned_number
 
 unsigned_number : 
-	one_or_more_decimal_digits_possibly_separated_by_underscore
+	decimal_digits
 
 
 decimal_base :
@@ -1763,22 +2542,25 @@ octal_base :
 hex_base : 
 	"'h"  |  "'H"  
 
-decimal_digit : 
-        /[0-9]/
+hex_digits : 
+        /[xXzZ0-9a-fA-F][xXzZ0-9a-fA-F_]*/
 
-binary_digit : 
-        /[xXzZ01]/
 
-octal_digit : 
-        /[xXzZ0-7]/
+octal_digits : 
+        /[xXzZ0-7][xXzZ0-7_]*/
 
-hex_digit : 
-        /[xXzZ0-9a-fA-F]/
+binary_digits : 
+        /[xXzZ01][xXzZ01_]*/
 
-        
+
+decimal_digits : 
+        /[0-9][0-9_]*/
+
+
+
 concatenation : 
         '{' 
-        one_or_more_expressions_separated_by_commas
+        expression_comma_expression
         '}'
 
 function_call : 
@@ -1788,24 +2570,27 @@ function_call :
 function_identifier_parameter_list : 
         function_identifier 
           '(' 
-        one_or_more_expressions_separated_by_commas
+        expression_comma_expression
         ')'
 
 name_of_system_function_parameter_list :
         name_of_system_function
         '(' 
-        one_or_more_expressions_separated_by_commas
+        expression_comma_expression
         ')'
 
 # note, do not allow space between dollar and function name
 name_of_system_function : 
-        '$' identifier
+        '$'
+	<skip:''>
+	identifier
 
-string : 
-        '"' any_string_character(s?) '"'
+string_literal : 
+        /"([^\n"])"/  
+	{ $1 }
 
 any_string_character : 
-	/[a-zA-Z0-9_]/
+	/[^\n]/
 
 
 scalar_expression :
@@ -1893,137 +2678,6 @@ udp_output_port_identifier :
 
 
 
-
-
-#################################################################
-# lists with separators
-#################################################################
-
-
-one_or_more_hex_digits_separated_by_optional_underscore : 
-	hex_digit
-	underscore_hex_digit(s?)
-
-underscore_hex_digit :
-	underscore_character(?)
-	hex_digit
-
-one_or_more_octal_digits_separated_by_optional_underscore : 
-	octal_digit
-	underscore_octal_digit(s?)
-
-underscore_octal_digit :
-	underscore_character(?)
-	octal_digit
-
-one_or_more_binary_digits_separated_by_optional_underscore : 
-	binary_digit
-	underscore_binary_digit(s?)
-
-underscore_binary_digit :
-	underscore_character(?)
-	binary_digit
-
-one_or_more_decimal_digits_possibly_separated_by_underscore : 
-	decimal_digit 
-	underscore_decimal_digit(s?)
-
-underscore_decimal_digit :
-	underscore_character(?)
-	decimal_digit
-
-underscore_character :
-	'_'
-
-one_or_more_cmos_switch_instance_separated_by_commas : 
-	<leftop: cmos_switch_instance /(,)/ cmos_switch_instance>
-
-one_or_more_enable_gate_instance_separated_by_commas : 
-	<leftop: enable_gate_instance /(,)/ enable_gate_instance>
-
-one_or_more_expressions_separated_by_commas : 
-	<leftop: expression /(,)/ expression>
-
-one_or_more_constant_expressions_separated_by_commas : 
-	<leftop: expression /(,)/ expression>
-
-one_or_more_input_terminals_separated_by_commas : 
-	<leftop: input_terminal /(,)/ input_terminal>
-
-one_or_more_input_port_identifier_separated_by_commas : 
-	<leftop: input_port_identifier /(,)/ input_port_identifier>
-
-one_or_more_input_port_connections_separated_by_commas : 
-	<leftop: input_port_connection /(,)/ input_port_connection>
-
-one_or_more_mos_switch_instance_separated_by_commas : 
-	<leftop: mos_switch_instance /(,)/ mos_switch_instance>
-
-one_or_more_named_port_connections_separated_by_commas : 
-	<leftop: named_port_connection /(,)/ named_port_connection>
-
-one_or_more_net_assignments_separated_by_commas : 
-	<leftop: net_assignment /(,)/ net_assignment>
-
-one_or_more_net_decl_assignments_separated_by_commas : 
-	<leftop: net_decl_assignment /(,)/ net_decl_assignment>
-
-one_or_more_net_identifiers_separated_by_commas : 
-	<leftop: net_identifier /(,)/ net_identifier>
-
-one_or_more_n_input_gate_instance_separated_by_commas : 
-	<leftop: n_input_gate_instance /(,)/ n_input_gate_instance>
-
-one_or_more_n_output_gate_instance_separated_by_commas : 
-	<leftop: n_output_gate_instance /(,)/ n_output_gate_instance>
-
-one_or_more_output_terminals_separated_by_commas : 
-	<leftop: output_terminal /(,)/ output_terminal>
-
-one_or_more_ordered_port_connections_separated_by_commas : 
-	<leftop: ordered_port_connection /(,)/ ordered_port_connection>
-
-one_or_more_parameter_assignments_serparated_by_commas : 
-	<leftop: parameter_assignment /(,)/ parameter_assignment>
-
-one_or_more_pass_enable_switch_instance_separated_by_commas : 
-	<leftop: pass_enable_switch_instance /(,)/ pass_enable_switch_instance>
-
-one_or_more_pass_switch_instance_separated_by_commas : 
-	<leftop: pass_switch_instance /(,)/ pass_switch_instance>
-
-one_or_more_ports_separated_by_commas : 
-	<leftop: port /(,)/ port>
-
-one_or_more_port_identifiers_separated_by_commas : 
-	<leftop: port_identifier /(,)/ port_identifier>
-
-one_or_more_port_references_separated_by_commas : 
-	<leftop: port_reference /(,)/ port_reference>
-
-one_or_more_pull_gate_instance_seperated_by_commas : 
-	<leftop: pull_gate_instance /(,)/ pull_gate_instance>
-
-one_or_more_real_identifiers_separated_by_commas : 
-	<leftop: real_identifier /(,)/ real_identifier>
-
-one_or_more_event_identifiers_separated_by_commas : 
-	<leftop: event_identifier /(,)/ event_identifier>
-
-one_or_more_register_names_separated_by_commas : 
-	<leftop: register_name /(,)/ register_name>
-
-one_or_more_specify_input_terminal_descriptors_separated_by_commas : 
-	<leftop: specify_input_terminal_descriptor /(,)/ specify_input_terminal_descriptor>
-
-one_or_more_specify_output_terminal_descriptors_separated_by_commas : 
-	<leftop: specify_output_terminal_descriptor /(,)/ specify_output_terminal_descriptor>
-
-one_or_more_specparam_assignments_separated_by_commas : 
-	<leftop: specparam_assignment /(,)/ specparam_assignment>
-
-one_or_more_udp_instances_separated_by_commas : 
-	<leftop: udp_instance /(,)/ udp_instance>
 
 
 	};   # end of return statement
@@ -2334,6 +2988,11 @@ sub filename_to_text
 }
 
 
+##################################################################
+##################################################################
+##################################################################
+##################################################################
+
 
 
 
@@ -2374,8 +3033,31 @@ will print out all instance names that occur in the file being parsed.
 This might be useful for creating an automatic build script, or a graphical
 hierarchical browser of a Verilog design.
 
-This module is currently in Beta release. All code is subject to change.
+This module is currently in alpha release. All code is subject to change.
 Bug reports are welcome.
+
+
+DSLI information:
+
+
+D - Development Stage
+
+	a - alpha testing
+
+S - Support Level
+
+	d - developer
+
+L - Language used
+
+	p - perl only, no compiler needed, should be platform independent
+
+I - Interface Style
+
+	O - Object oriented using blessed references and / or inheritance
+
+
+
 
 =head1 AUTHOR
 
@@ -2388,7 +3070,7 @@ email contact: greg42@bellatlantic.net
 
 =head1 SEE ALSO
 
-Parse::RecDescent
+Parse::RecDescent, version 1.77
 
 perl(1).
 

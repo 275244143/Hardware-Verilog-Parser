@@ -6,5 +6,6 @@ MANIFEST
 parser.pl
 Parser.pm
 readme.txt
+StdLogic.pm
 test.pl
 test1.v
