@@ -11,7 +11,7 @@ use Parse::RecDescent;
 @ISA = ( 'Parse::RecDescent' );
 ##################################################################
 use vars qw ( $VERSION  @ISA);
-$VERSION = '0.05';
+$VERSION = '0.06';
 ##################################################################
 
 ##################################################################
@@ -977,9 +977,9 @@ else_statement_or_null :
 
 
 case_statement : 
-	  case_endcase  
-	| casez_endcase  
+	  casez_endcase  
 	| casex_endcase
+	| case_endcase  
 
 case_endcase :
         'case' expression_case_item_list 'endcase'
@@ -994,8 +994,8 @@ expression_case_item_list :
         '(' expression ')' case_item(s)
 
 case_item : 
-	  expression_list_statement_or_null 
-	| default_statement_or_null 
+	  default_statement_or_null 
+	| expression_list_statement_or_null 
 
 expression_list_statement_or_null : 
         one_or_more_expressions_separated_by_commas 
@@ -1638,41 +1638,41 @@ uni_expr :
 	unary_operator(?) primary 
 
 unary_operator : 
-	  '+' 
+	  '~|' 
+	| '~^' 
+	| '~&' 
+	| '^~' 
+	| '+' 
 	| '-' 
 	| '!' 
 	| '~' 
 	| '&' 
-	| '~&' 
 	| '|' 
-	| '~|' 
 	| '^' 
-	| '~^' 
-	| '^~' 
 
 binary_operator : 
-	  '+' 
-	| '-' 
-	| '*' 
-	| '/' 
-	| '%'
-	| '==' 
-	| '!=' 
-	| '===' 
+	  '===' 
 	| '!==' 
-	|  '&&' 
+	| '==' 
+	| '&&' 
 	| '||' 
-	| '<' 
-	| '<=' 
-	| '>'
 	| '>=' 
-	| '&' 
-	| '|' 
-	| '^' 
 	| '^~' 
 	| '~^' 
 	| '>>' 
 	| '<<'
+	| '!=' 
+	| '<=' 
+	| '+' 
+	| '-' 
+	| '*' 
+	| '/' 
+	| '%'
+	| '<' 
+	| '>'
+	| '&' 
+	| '|' 
+	| '^' 
 
 primary : 
 	  number 
@@ -1688,9 +1688,9 @@ mintypmax_expression_in_paren :
         '(' mintypmax_expression ')'
 
 number : 
-	  octal_number  
-	| binary_number  
+	  binary_number  
 	| hex_number  
+	| octal_number  
 	| real_number
 	| decimal_number  
 
@@ -1713,8 +1713,8 @@ two_unsigned_numbers_separated_by_decimal_point_with_exponent :
          ( 'e' | 'E' ) sign(?) unsigned_number
 
 decimal_number : 
-	  sign_unsigned_number 
-	| size_decimal_base_unsigned_number
+	  size_decimal_base_unsigned_number 
+	| sign_unsigned_number
 
 sign_unsigned_number :
         sign(?) 
@@ -1900,11 +1900,29 @@ udp_output_port_identifier :
 #################################################################
 
 
-one_or_more_binary_digits_separated_by_optional_underscore : 
-	<leftop: binary_digit /(,)/ binary_digit>
+one_or_more_hex_digits_separated_by_optional_underscore : 
+	hex_digit
+	underscore_hex_digit(s?)
 
-one_or_more_cmos_switch_instance_separated_by_commas : 
-	<leftop: cmos_switch_instance /(,)/ cmos_switch_instance>
+underscore_hex_digit :
+	underscore_character(?)
+	hex_digit
+
+one_or_more_octal_digits_separated_by_optional_underscore : 
+	octal_digit
+	underscore_octal_digit(s?)
+
+underscore_octal_digit :
+	underscore_character(?)
+	octal_digit
+
+one_or_more_binary_digits_separated_by_optional_underscore : 
+	binary_digit
+	underscore_binary_digit(s?)
+
+underscore_binary_digit :
+	underscore_character(?)
+	binary_digit
 
 one_or_more_decimal_digits_possibly_separated_by_underscore : 
 	decimal_digit 
@@ -1917,6 +1935,9 @@ underscore_decimal_digit :
 underscore_character :
 	'_'
 
+one_or_more_cmos_switch_instance_separated_by_commas : 
+	<leftop: cmos_switch_instance /(,)/ cmos_switch_instance>
+
 one_or_more_enable_gate_instance_separated_by_commas : 
 	<leftop: enable_gate_instance /(,)/ enable_gate_instance>
 
@@ -1925,9 +1946,6 @@ one_or_more_expressions_separated_by_commas :
 
 one_or_more_constant_expressions_separated_by_commas : 
 	<leftop: expression /(,)/ expression>
-
-one_or_more_hex_digits_separated_by_optional_underscore : 
-	<leftop: hex_digit /(,)/ hex_digit>
 
 one_or_more_input_terminals_separated_by_commas : 
 	<leftop: input_terminal /(,)/ input_terminal>
@@ -1958,9 +1976,6 @@ one_or_more_n_input_gate_instance_separated_by_commas :
 
 one_or_more_n_output_gate_instance_separated_by_commas : 
 	<leftop: n_output_gate_instance /(,)/ n_output_gate_instance>
-
-one_or_more_octal_digits_separated_by_optional_underscore : 
-	<leftop: octal_digit /(,)/ octal_digit>
 
 one_or_more_output_terminals_separated_by_commas : 
 	<leftop: output_terminal /(,)/ output_terminal>
@@ -2157,8 +2172,33 @@ my $could_be_quote;
 
 }
 
+
 #########################################################################
-sub convert_defines_in_text
+#
+# the %define_hash variable keeps track of all `define values.
+# it is class level variable because it needs to keep track of
+# `defines that may cross file boundaries due to `includes.
+# i.e.
+# main.v
+# `include "defines.inc"
+# wire [`width:1] mywire;
+#
+# defines.inc
+# `define width 8
+#
+# since each new included file calls filename_to_text, which in turn
+# calls convert_compiler_directives_in_text, the %define_hash cannot
+# be declared inside convert_compiler_directives_in_text because it
+# will cease to exist once the included file is spliced in.
+# for `defines to exists after the included file, the define_hash
+# must be class level data.
+# it could be stored in $obj->{'define_hash'}, but that seems overkill.
+#
+#########################################################################
+ my %define_hash;
+
+#########################################################################
+sub convert_compiler_directives_in_text
 #########################################################################
 {
  my ($obj,$text)=@_;
@@ -2167,11 +2207,11 @@ sub convert_defines_in_text
 
  my $filtered_text='';
 
- my %define_hash;
-
  my ( $string_prior_to_tick, $string_after_tick);
 
 my $temp_string;
+my ($key, $value);
+my $sub_string;
 
 while(1)
 	{
@@ -2191,15 +2231,15 @@ while(1)
 	if ($string_after_tick =~ /^define/)
 		{
 		$string_after_tick =~ /^define\s+(.*)/;
-		my $temp_string = $1;
-		my ($key, $value) = split(/\s+/, $temp_string, 2);
+		$temp_string = $1;
+		($key, $value) = split(/\s+/, $temp_string, 2);
 		$define_hash{$key}=$value;
 
 		#print "defining key=$key   value=$value \n";############
 
-		my $define_string = '^define\s+'.$temp_string;
+		$sub_string = '^define\s+'.$temp_string;
 
-		$string_after_tick =~ s/$define_string//;
+		$string_after_tick =~ s/$sub_string//;
 		$text = $string_after_tick;
 		}
 
@@ -2207,15 +2247,34 @@ while(1)
 	elsif ($string_after_tick =~ /^undef/)
 		{
 		$string_after_tick =~ /^undef\s+(\w+)/;
-		my $key = $1;
-		my $undef_string = '^undef\s+'.$key;
-		$string_after_tick =~ s/$undef_string//;
+		$key = $1;
+		$temp_string = '^undef\s+'.$key;
+		$string_after_tick =~ s/$temp_string//;
 
 		$define_hash{$key}=undef;
 		$text = $string_after_tick;
 
 		#print "undefining key=$key \n";#########
 		}
+
+	# else if `include
+	elsif ($string_after_tick =~ /^include/)
+		{
+		$string_after_tick =~ /^include\s+(.*)/;
+		$temp_string = $1;
+
+		$sub_string = '^include\s+'.$temp_string;
+		$string_after_tick =~ s/$sub_string//;
+
+		$temp_string =~ s/"//g;
+		# print "including file $temp_string\n";
+		$string_after_tick = 
+			$obj->filename_to_text($temp_string) .
+			$string_after_tick;
+
+		$text = $string_after_tick;
+		}
+
 
 	# else must be a defined constant, replace `NAME with $value
 	else
@@ -2248,8 +2307,8 @@ sub Filename
 	{
 	my $filename = shift;
  	my $text = $obj->filename_to_text($filename);
- 	$text = $obj->decomment_given_text($text);
- 	$text = $obj->convert_defines_in_text($text);
+
+	#print "text to parse is \n$text\n";
 
  	$obj->design_file($text);
 	}
@@ -2259,8 +2318,6 @@ sub Filename
 sub filename_to_text
 #########################################################################
 #
-# need to handle `includes here
-#
 {
  my ($obj,$filename)=@_;
  open (FILE, $filename) or die "Cannot open $filename for read\n";
@@ -2269,6 +2326,10 @@ sub filename_to_text
   {
   $text .= $_;
   }
+
+ $text = $obj->decomment_given_text($text);
+ $text = $obj->convert_compiler_directives_in_text($text);
+
  return $text;
 }
 

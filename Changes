@@ -15,5 +15,9 @@ Revision history for Perl extension Hardware::Verilog::Parser.
 	added Hierarchy.pm module
 	added hierarchy.pl script
 
-0.04  8 Feb 2000
+0.05  8 Feb 2000
 	made some fixes to expression rules
+
+0.06  9 Feb 2000
+	fixed some grammar rules
+	can now handle `include, `define, `undef directives
