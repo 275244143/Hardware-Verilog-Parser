@@ -5,6 +5,9 @@ use strict;
 
 package Hardware::Verilog::StdLogic;
 
+use Data::Dumper;
+# print Dumper($reference);
+
 sub new
 {
  my ($class, $string) = @_;
@@ -1347,6 +1350,135 @@ sub conditional_operator
 }
 
 
+
+############################################################
+############################################################
+############################################################
+############################################################
+############################################################
+
+# highest priority					priority
+# unary 				+ - ~ !		xxx
+# multiply divide modulus		* / %		100
+# add subtract				+ -		90
+# shift					<< >>		80
+# relation				< <= > >=	70
+# equality				== != === !==	60
+# reduction and				& ~&		50
+# reduction xor				^ ~^		40
+# reduction or				| ~|		30
+# logical and				&&		20
+# logical or				||		10
+# conditional				?:		xxx
+# lowest priority
+
+# note that unary operators and
+# conditional (trinary ?:) operators
+# are handled separate from this level of priority,
+# therefore they are not included in the hash shown below.
+
+my %binary_priority_hash = (
+	'||' => 10,
+	'&&' => 20,
+	'|'  => 30,	'~|' => 30,
+	'^'  => 40, 	'~^' => 40,
+	'&'  => 50,	'~&' => 50,
+	'==' => 60, 	'!=' => 60,   '===' => 60, '!==' => 60,
+	'<'  => 70, 	'<=' => 70,   '>'   => 70, '>='  => 70,
+	'<<' => 80, 	'>>' => 80,
+	'+'  => 90,	'-'  => 90,
+	'*'  => 100,	'/'  => 100,  '%' =>100, 
+	);
+
+############################################################
+############################################################
+############################################################
+############################################################
+############################################################
+
+# given a chain of constant expressions, 
+# separated by binary operators,
+# evaluate the result using the correct precedence.
+
+
+# 9 + 49 / -23 * 33 << 3
+
+sub BinaryOperatorChain
+{
+
+# print "\n\n CALLING BinaryOperatorChain \n\n\n";
+
+ my ( $obj, @chain_list ) = @_;
+
+ ############################################################
+ if(0)
+  {
+  print "\n\n\n DUMPING LIST \n\n\n";
+  foreach my $item (@chain_list)
+	 {
+	 if (ref($item))
+		 {
+		 $item->dump;
+		 }
+	 else
+		 { print "operator is  $item \n"; }
+	 }
+  }
+ ############################################################
+
+ ############################################################
+ # go through the chain_list and reduce it one operator at a time,
+ # taking into account operator precedence and left to right
+ # occurence of operators.
+ ############################################################
+ my $i;
+ my $binary_operator;
+ my $current_priority;
+ my $highest_operator_index;
+ my $highest_priority_so_far;
+
+ my $left;
+ my $right;
+ my $result;
+ while( @chain_list > 1 )
+	{
+	####################################################
+	# look at all the operators and find the one
+	# with the highest priority.
+	# go left to right so that left has higher priority
+	####################################################
+ 	$highest_operator_index = 0;
+ 	$highest_priority_so_far = 0;
+	for($i=1; $i<@chain_list; $i=$i+2)
+		{
+		$binary_operator = $chain_list[$i];
+		$current_priority = $binary_priority_hash{$binary_operator};
+		if ($current_priority > $highest_priority_so_far)
+			{
+			$highest_operator_index = $i;
+			}
+		}
+
+	####################################################
+	# $highest_operator_index points to the operator in
+	# @chain_list with the highest priority.
+	# take the operator and the two items that surround it,
+	# and reduce it to a single value.
+	# (i.e. three items in chain_list: '4' '+' '2'
+	#  are replaced with one item in chain_list: '6' )
+	####################################################
+	$left            = $chain_list[$highest_operator_index - 1];
+	$binary_operator = $chain_list[$highest_operator_index    ];
+	$right           = $chain_list[$highest_operator_index + 1];
+
+	$result = $left->binary_operator($binary_operator, $right);
+
+	splice(@chain_list, $highest_operator_index-1, 3, ($result));
+	}
+
+
+ return $chain_list[0];
+}
 
 ############################################################
 ############################################################

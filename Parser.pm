@@ -12,7 +12,7 @@ use Hardware::Verilog::StdLogic;
 @ISA = ( 'Parse::RecDescent' );
 ##################################################################
 use vars qw ( $VERSION  @ISA);
-$VERSION = '0.07';
+$VERSION = '0.08';
 ##################################################################
 
 ##################################################################
@@ -94,7 +94,6 @@ sub new
 sub grammar
 ##################################################################
 {
-
 # note, q{  statement should be on line 100, 
 # to make it easier to find referenced line numbers
 
@@ -114,8 +113,6 @@ return  q{
 	my %verilog_output;
 	my %verilog_msb;
 	my %verilog_lsb;
-
-
 
 
 	}
@@ -139,9 +136,9 @@ module_declaration :
 	<commit>
 
 	{
-	%verilog_port = (); 
 	%verilog_net = (); 
 	%verilog_reg = (); 
+	%verilog_port = (); 
 	%verilog_input = (); 
 	%verilog_inout = (); 
 	%verilog_output = (); 
@@ -410,36 +407,38 @@ reg_declaration :
         'reg'
  	<commit>
        range(?) 
-        declare_register_name_comma_declare_register_name
+        declare_register_name_comma_declare_register_name[$item[1],@{$item{range}->[0]}]
         ';'
 	| <error?>
 
 time_declaration :  
         'time'
 	<commit>
-        declare_register_name_comma_declare_register_name
+        declare_register_name_comma_declare_register_name[$item[1]]
         ';'
 
 integer_declaration :  
         'integer'
  	<commit>
-       declare_register_name_comma_declare_register_name
+       declare_register_name_comma_declare_register_name[$item[1]]
         ';'
 	| <error?>
 
 declare_register_name_comma_declare_register_name :
-	declare_register_name
-	comma_declare_register_name(s?)
+	declare_register_name[@arg]
+	comma_declare_register_name[@arg](s?)
 
 comma_declare_register_name :
 	','
 	<commit>
-	declare_register_name
+	declare_register_name[@arg]
 	| <error?>
 
 declare_register_name :
 	register_name
 	{ 
+	$verilog_msb{$item{register_name}} = $arg[1];
+	$verilog_lsb{$item{register_name}} = $arg[2];
 	if(exists($verilog_reg{$item{register_name}}))
 		{
 		$junk{register_name} = $item{register_name};
@@ -2224,11 +2223,30 @@ reg_identifier_with_bit_selection :
         register_identifier
 	bit_selection_or_bit_slice(?)
 
-constant_expression : 
-	constant_bin_expr 
+##################################################################
+# need to be able to handle any of the following:
+#  3 + 4
+# ( 3 + 4 )
+#  4 + 3 / -2 + 1 
+# ( 3 + 4 ) * ( 5 - 1 )
+# 3 + 4 ? 12 * 33 : 99 - 1
+# 3 + 4 ? 12 * 33 ? 11 - 3 : 3 ? 23 - 33 : 334
+##################################################################
+constant_expression :
+	  constant_trinary_expression
+	| constant_expression_in_parens
+
+constant_expression_in_parens :
+	'(' constant_expression ')'
+	{
+	$return = $item{constant_expression};
+	}
+
+constant_trinary_expression : 
+	constant_binary_series 
 	question_constant_expr_colon_constant_expr(?)
 	{
-	my $primary=$item{constant_bin_expr};
+	my $primary=$item{constant_binary_series};
 	my $final = $primary;
 	my $rule_result = $item{question_constant_expr_colon_constant_expr};
 	if(defined($rule_result))
@@ -2260,39 +2278,55 @@ question_constant_expr_colon_constant_expr :
 	}
 	| <error?>
 
-constant_bin_expr : 
-	constant_uni_expr 
-	binary_operator_constant_bin_expr(?)
+# must be able to handle 
+# 4
+# 4 + 3
+# ( 4 + 3 )
+# (4 + 3) / 2
+# 4 + ( 3 / 2 )
+# 4 + 3 / 2
+# 4 + 3 / -2 + 1
+# (4 + 3) / (-2 + 1)
+# 4 + (3 / -2) + 1
+#   4 + 3 / 2 + 1  
+# ( 4 + 3 / 2 + 1 )
+# 2 + 3 * ( ( 4 + 5 ) * 6 ) - 7 - 3
+constant_binary_series :  
+	                constant_unary_expr_or_parenthetical_constant_binary_series
+	binary_operator_constant_unary_expr_or_parenthetical_constant_binary_series(s?)
 	{
-	my $left=$item{constant_uni_expr};
-	my $final = $left;
-	my $rule_result = $item{binary_operator_constant_bin_expr};
-	if(defined($rule_result))
+	my $left=$item{constant_unary_expr_or_parenthetical_constant_binary_series};
+	my $right = $item{binary_operator_constant_unary_expr_or_parenthetical_constant_binary_series};
+	my @list;
+	push(@list,$left);
+	foreach my $temp (@$right)
 		{
-		my $binop_expr = pop(@$rule_result);
-		if(defined($binop_expr))
-			{
-			my ($binop, $right) = @$binop_expr;
-			if(defined($binop))
-				{
-				$final = $left->binary_operator($binop, $right);
-				}
-			}
+		push(@list,@$temp);
 		}
+	my $final = $left->BinaryOperatorChain(@list);
 	$return = $final;
 	}
-	
 
-binary_operator_constant_bin_expr :
+binary_operator_constant_unary_expr_or_parenthetical_constant_binary_series :
 	binary_operator
-	constant_bin_expr
+	constant_unary_expr_or_parenthetical_constant_binary_series
 	{
-	my $op = $item{binary_operator};
-	my $ex = $item{constant_bin_expr};
-	$return = [ $op, $ex ];
-	1;
+	$return = 
+		[
+		$item{binary_operator}, 
+		$item{constant_unary_expr_or_parenthetical_constant_binary_series}
+		];
 	}
 
+constant_unary_expr_or_parenthetical_constant_binary_series :
+	  constant_uni_expr
+	| parenthetical_constant_binary_series
+
+parenthetical_constant_binary_series : 
+	'(' constant_binary_series ')'
+	{
+	$return = $item{constant_binary_series};
+	}
 
 constant_uni_expr : 
 	optional_unary_operator 

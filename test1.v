@@ -12,6 +12,7 @@ module testmodule (
 	output myout;
 	reg myout;
 
+	reg [ 8'h4 + 8'h3 + 8'h2 : 0 ] temp_reg;
 
 	wire mywire;
 	assign mywire = myin;
