@@ -8,3 +8,9 @@ Revision history for Perl extension Hardware::Verilog::Parser.
 0.03  7 Feb 2000
 	grammar actually compiles
 	cannot parse an always block though.
+
+0.04  7 Feb 2000
+	parses always blocks
+	parses module instantiations
+	added Hierarchy.pm module
+	added hierarchy.pl script

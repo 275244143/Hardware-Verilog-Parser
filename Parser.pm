@@ -11,7 +11,7 @@ use Parse::RecDescent;
 @ISA = ( 'Parse::RecDescent' );
 ##################################################################
 use vars qw ( $VERSION  @ISA);
-$VERSION = '0.03';
+$VERSION = '0.04';
 ##################################################################
 
 ##################################################################
@@ -168,15 +168,15 @@ single_bit :
 	expression
 
 module_item : 
-        module_item_declaration | 
-        parameter_override | 
-        continuous_assignment | 
-        gate_instantiation | 
-        udp_instantiation | 
-        module_instantiation | 
-        specify_block | 
-        initial_construct | 
-        always_construct
+	module_item_declaration | 
+	parameter_override | 
+	continuous_assignment | 
+	module_instantiation | 
+	gate_instantiation | 
+	udp_instantiation | 
+	specify_block | 
+	initial_construct | 
+	always_construct
 	| <error>
 
 module_item_declaration :
@@ -672,35 +672,42 @@ module_instantiation :
         parameter_value_assignment(?)
         module_instance(s)
 	';'
+	| <error>
 
 parameter_value_assignment :
         '#' 
         '(' 
         one_or_more_expressions_separated_by_commas 
         ')' 
+	| <error>
 
 module_instance :  
-        name_of_instance 
+        name_of_instance  
         '('
         list_of_module_connections(?)
         ')'
+	| <error>
 
 
 name_of_instance  : 
          module_instance_identifier
         range(?)
+	| <error>
 
 list_of_module_connections :
-	  one_or_more_ordered_port_connections_separated_by_commas 
-	| one_or_more_named_port_connections_separated_by_commas 
+	  one_or_more_named_port_connections_separated_by_commas 
+	| one_or_more_ordered_port_connections_separated_by_commas 
+	| <error>
 
 ordered_port_connection  :  
         expression(?)
+	| <error>
 
 named_port_connection :
         '.' 
         port_identifier
         '(' port_expression ')'
+	| <error>
 
 
 
@@ -842,10 +849,8 @@ always_construct  :
         'always' statement
 
 statement :
-	  blocking_assignment_with_semicolon
-	| non_blocking_assignment_with_semicolon 
+	  procedural_timing_control_statement 
 	| procedural_continuous_assignment_with_semicolon 
-	| procedural_timing_control_statement 
 	| conditional_statement 
 	| case_statement 
 	| loop_statement 
@@ -856,12 +861,16 @@ statement :
 	| par_block 
 	| task_enable 
 	| system_task_enable
+	| blocking_assignment_with_semicolon
+	| non_blocking_assignment_with_semicolon 
+	| <error>
 
 blocking_assignment_with_semicolon :
 	blocking_assignment ';'
 
 non_blocking_assignment_with_semicolon :
 	non_blocking_assignment ';'
+	| <error>
 
 procedural_continuous_assignment_with_semicolon :
 	procedural_continuous_assignment ';'
@@ -882,6 +891,7 @@ non_blocking_assignment :
         '<='
         delay_or_event_control(?)
         expression
+	| <error>
 
 
 procedural_continuous_assignment :
@@ -913,43 +923,50 @@ release_net_lvalue :
 procedural_timing_control_statement  : 
         delay_or_event_control 
         statement_or_null
+	| <error>
 
 delay_or_event_control : 
           delay_control
         | event_control
+        | repeat_expression_event_control
+	| <error>
 
+repeat_expression_event_control :
+	'repeat'
+	'('
+	expression
+	')'
+	event_control
 
 delay_control :
-	'#' ( delay_value | mintypmax_expression_in_paren )                
+	'#' delay_value_or_mintypmax_expression_in_paren                
+
+delay_value_or_mintypmax_expression_in_paren :
+	delay_value | mintypmax_expression_in_paren
 
 mintypmax_expression_in_paren  : 
 	 '(' mintypmax_expression ')'
 
 event_control :
-	  at_event_identifier
-	| at_event_expression_list
+	'@' event_identifier_or_event_expression_list_in_paren
 
-at_event_identifier :
-	'@'
-	event_identifier
+event_identifier_or_event_expression_list_in_paren :
+	  event_expression_list_in_paren
+	| event_identifier
 
-at_event_expression_list :
-	'@'
+event_expression_list_in_paren :
 	'('
-	event_expression_list
-	')'
-
-event_expression_list :
 	event_expression or_event_expression(s?)
+	')'
 
 or_event_expression :
 	'or' event_expression
 
 event_expression : 
-	  expression 
-	| event_identifier 
-	| posedge_expression 
+	  posedge_expression 
 	| negedge_expression 
+	| event_identifier 
+	| expression 
 
 posedge_expression :
         'posedge' 
@@ -1546,6 +1563,7 @@ reg_lvalue :
 	| reg_identifier_with_bit_select  
 	| reg_identifier_with_slice_select   
 	| reg_concatenation
+	| <error>
 
 reg_identifier_with_bit_select :
         register_identifier '[' expression ']'
@@ -1600,6 +1618,8 @@ colon_expression_colon_expression :
 expression : 
 	bin_expr '?' expression ':' expression 
 	| bin_expr
+	| <error>
+
 
 bin_expr : 
 	uni_expr binary_operator_bin_expr(?)
@@ -1662,17 +1682,17 @@ mintypmax_expression_in_paren :
         '(' mintypmax_expression ')'
 
 number : 
-	  decimal_number  
-	| octal_number  
+	  octal_number  
 	| binary_number  
 	| hex_number  
 	| real_number
+	| decimal_number  
 
 real_number : 
         sign(?) 
-        ( two_unsigned_numbers_separated_by_decimal_point |
-          unsigned_number_with_exponent |
-         two_unsigned_numbers_separated_by_decimal_point_with_exponent 
+        ( two_unsigned_numbers_separated_by_decimal_point_with_exponent |
+          two_unsigned_numbers_separated_by_decimal_point |
+          unsigned_number_with_exponent
         )
 
 
@@ -1794,7 +1814,7 @@ conditional_expression :
 
 
 identifier :
-        /[a-zA-Z][a-zA-Z_]*/
+        /[a-zA-Z][a-zA-Z_0-9]*/
 
 
 block_identifer : 
@@ -2133,7 +2153,6 @@ sub Filename
  	my $text = $obj->filename_to_text($filename);
  	$text = $obj->decomment_given_text($text);
 
-print "decommented text = \n$text \n";
 
  	$obj->design_file($text);
 	}
