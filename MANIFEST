@@ -1,10 +1,12 @@
 Changes
+generate_precompiled_parser.pl
 hierarchy.pl
 Hierarchy.pm
 Makefile.PL
 MANIFEST
 parser.pl
 Parser.pm
+PrecompiledParser.pm
 readme.txt
 StdLogic.pm
 test.pl

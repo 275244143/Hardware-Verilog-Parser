@@ -38,6 +38,12 @@ Revision history for Perl extension Hardware::Verilog::Parser.
 	accumulate instance names, report at end of each module.
 	tweak literals, minor fix.
 
+0.10  28 Feb 2000
+	Precompiled parser now works.  Parses test1.v in about 6 seconds.
+	generate_precompiled_parser.pl can't seem to properly
+	insert the "use Hardware::Verilog::StdLogic" line
+	correctly though. Have to manually edit the PrecompiledParser.pm
+	file to do it correctly.
 
 
 

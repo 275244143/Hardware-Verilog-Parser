@@ -18,45 +18,70 @@ to parse the file, type:
 
 verilog.pl test1.v
 
-The verilog.pl script doesn't do anything except parse the file.
-There is another module called hierarchy.pm which spits out
-the name of all instantiated components. There is a script,
-called hierarchy.pl, that uses this module. To run this script,
-type:
+This should print out a report on test1.v that looks something like this:
 
-hierarchy.pl test1.v
+module testmodule 
 
-this should print out:
-INSTANCENAME INSTANCE_U1 
-INSTANCENAME INSTANCE_U2 
-INSTANCENAME INSTANCE_U3 
 
-PLEASE NOTE: the script takes some time to simply load the grammar.
-the it takes about a minute (yes, 60 seconds) to run the 
-hierarchy.pl test1.vhd command shown above when run on an Ultra 60.
-your performance may vary.
+contained the following input ports:
+	clock
+	myin
+	reset_n
 
-the Parse::RecDescent has some features which will eventually 
-allow me to speed up this execution time. I'll get to that
-when the grammar is ironed out.
 
-status of grammar: Beta
+contained the following inout ports:
 
-once the grammar is in a released state, 
-then I'll concentrate on tools that use the grammar. 
 
-possible tool applications include: 
-1) automatic build scripts, 
-2) automatic synthesis scripts, 
-3) hierarchical browswers,
-4) lint type checking with a hardware slant,
-   "hey buddy, you've got combinatorial logic driving a module output port"
-   "you've got combinatorial paths that cross multiple hierarchy boundaries."
-   "did you ever hear of clocking all your output ports"
-5) a script that can go through a netlist,
-	find all the signals,
-	perform regular-expression renaming on the signals,
-	and save the results as a new netlist.
+contained the following output ports:
+	myout
+	outwire
+
+
+contained the following wires:
+	 type wire 	clock
+	 type wire 	myin
+	 type wire 	mywire
+	 type wire 	outwire
+	 type wire 	reset_n
+
+
+contained the following regs:
+	myout
+	temp_reg1 [ 23 : 0 ] 
+	temp_reg2 [ 35 : 0 ] 
+
+
+contained the following instances:
+
+
+
+The parser is now precompiled, and runs much faster than
+the previous versions. Without precompilation, it took
+about 60 seconds to run, with precompilation, it takes
+roughly 6 seconds. An order of magnitude improvement.
+
+
+
+
+Directory structure / installation information:
+
+once you untarred the file, you can install
+the files by creating a directory structure
+similar to this:
+
+~home/Hardware/Verilog
+
+inside that directory, copy the following files:
+
+Hierarchy.pm
+Parser.pm
+PrecompiledParser.pm
+StdLogic.pm
+
+The remaining files go into ~home.
+This would be where you run your perl scripts from.
+
+
 
 
 If you have any corrections or questions,
