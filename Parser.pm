@@ -12,7 +12,7 @@ use Parse::RecDescent;
 use vars qw ( $VERSION  @ISA);
 @ISA = ( 'PrecompiledParser' , 'Parse::RecDescent' );
 ##################################################################
-$VERSION = '0.10';
+$VERSION = '0.11';
 ##################################################################
 
 ##################################################################
@@ -207,7 +207,7 @@ sub convert_compiler_directives_in_text
 {
  my ($obj,$text)=@_;
 
- return $text unless ($text=~/`define/);
+ return $text unless ($text=~/`/);
 
  my $filtered_text='';
 
@@ -234,7 +234,7 @@ while(1)
 	# if new define
 	if ($string_after_tick =~ /^define/)
 		{
-		$string_after_tick =~ /^define\s+(.*)/;
+		$string_after_tick =~ /^define\s+(.*)\n/;
 		$temp_string = $1;
 		($key, $value) = split(/\s+/, $temp_string, 2);
 		$define_hash{$key}=$value;
@@ -250,7 +250,7 @@ while(1)
 	# else if `undef
 	elsif ($string_after_tick =~ /^undef/)
 		{
-		$string_after_tick =~ /^undef\s+(\w+)/;
+		$string_after_tick =~ /^undef\s+(\w+)\n/;
 		$key = $1;
 		$temp_string = '^undef\s+'.$key;
 		$string_after_tick =~ s/$temp_string//;
@@ -264,7 +264,7 @@ while(1)
 	# else if `include
 	elsif ($string_after_tick =~ /^include/)
 		{
-		$string_after_tick =~ /^include\s+(.*)/;
+		$string_after_tick =~ /^include\s+(.*)\n/;
 		$temp_string = $1;
 
 		$sub_string = '^include\s+'.$temp_string;
@@ -277,6 +277,109 @@ while(1)
 			$string_after_tick;
 
 		$text = $string_after_tick;
+		}
+
+	# else if `timescale
+	elsif ($string_after_tick =~ /^timescale/)
+		{
+		$string_after_tick =~ s/^timescale.*//;
+
+		$text = $string_after_tick;
+		}
+
+	# else if `celldefine
+	elsif ($string_after_tick =~ /^celldefine/)
+		{
+		$string_after_tick =~ s/^celldefine.*//;
+
+		$text = $string_after_tick;
+		}
+
+	# else if `endcelldefine
+	elsif ($string_after_tick =~ /^endcelldefine/)
+		{
+		$string_after_tick =~ s/^endcelldefine.*//;
+
+		$text = $string_after_tick;
+		}
+
+	# else if `suppress_faults
+	elsif ($string_after_tick =~ /^suppress_faults/)
+		{
+		$string_after_tick =~ s/^suppress_faults.*//;
+
+		$text = $string_after_tick;
+		}
+
+	# else if `enable_portfaults
+	elsif ($string_after_tick =~ /^enable_portfaults/)
+		{
+		$string_after_tick =~ s/^enable_portfaults.*//;
+
+		$text = $string_after_tick;
+		}
+
+	# else if `disable_portfaults
+	elsif ($string_after_tick =~ /^disable_portfaults/)
+		{
+		$string_after_tick =~ s/^disable_portfaults.*//;
+
+		$text = $string_after_tick;
+		}
+
+	# else if `suppress_faults
+	elsif ($string_after_tick =~ /^suppress_faults/)
+		{
+		$string_after_tick =~ s/^suppress_faults.*//;
+
+		$text = $string_after_tick;
+		}
+
+	# else if `nosuppress_faults
+	elsif ($string_after_tick =~ /^nosuppress_faults/)
+		{
+		$string_after_tick =~ s/^nosuppress_faults.*//;
+
+		$text = $string_after_tick;
+		}
+
+	# else if `ifdef
+	elsif ($string_after_tick =~ /^ifdef/)
+		{
+		$string_after_tick =~ /^ifdef\s+(.*)\n/;
+		$key = $1;
+		$string_after_tick =~ s/^ifdef\s+(.*)\n//;
+		$text = $string_after_tick;
+
+		my ($conditional_text,$text_after_conditional)
+			= split( '`endif' , $text, 2 );
+
+		my ($true_text, $false_text);
+
+		if( $conditional_text =~ /`else/ )
+			{
+			($true_text, $false_text) = 
+				split('`else', $conditional_text, 2);
+
+			}
+		else
+			{
+			$true_text = $conditional_text;
+			$false_text = '';
+
+			}
+
+
+
+
+		if(defined($define_hash{$key}))
+			{
+			$text = $true_text . $text_after_conditional;
+			}
+		else
+			{
+			$text = $false_text . $text_after_conditional;
+			}
 		}
 
 
@@ -310,9 +413,11 @@ sub Filename
  while(@_)
 	{
 	my $filename = shift;
+	print "\n\nparsing filename $filename \n\n\n";
+	print STDERR "\n\nparsing filename $filename \n\n\n";
  	my $text = $obj->filename_to_text($filename);
 
-	#print "text to parse is \n$text\n";
+	#print "\n\n\ntext to parse is \n$text\n\n\n\n";
 
  	$obj->design_file($text);
 	}
@@ -324,7 +429,7 @@ sub filename_to_text
 #
 {
  my ($obj,$filename)=@_;
- open (FILE, $filename) or die "Cannot open $filename for read\n";
+ open (FILE, $filename) or die "Cannot open file for reading: $filename\n";
  my $text;
  while(<FILE>)
   {

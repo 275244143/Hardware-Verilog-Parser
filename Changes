@@ -45,7 +45,12 @@ Revision history for Perl extension Hardware::Verilog::Parser.
 	correctly though. Have to manually edit the PrecompiledParser.pm
 	file to do it correctly.
 
-
+0.11  1 Mar 2000
+	fixed a bunch of warning messages about unintialized data.
+	ran a bunch of extreme verilog files through the parser.
+	fixed a bunch of errors in the grammar rules.
+	tried to clean up some of the grammar rules to run a bit faster.
+	fixed a number of StdLogic.pm bugs to perform math correctly.
 
 
 

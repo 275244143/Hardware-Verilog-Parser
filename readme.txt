@@ -75,12 +75,17 @@ inside that directory, copy the following files:
 
 Hierarchy.pm
 Parser.pm
-PrecompiledParser.pm
 StdLogic.pm
 
 The remaining files go into ~home.
 This would be where you run your perl scripts from.
 
+You will need to run the perl script:
+generate_precompiled_parser.pl
+to generate the file PrecompiledParser.pm
+this also goes into ~home
+(or whatever directory you are running your perl
+scripts from)
 
 
 

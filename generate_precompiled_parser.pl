@@ -25,8 +25,9 @@ return q{
 	my %verilog_msb;
 	my %verilog_lsb;
 	my %verilog_instances;
+	my %verilog_functions;
+	my %verilog_parameters;
 
-	my $last_encountered_net_type;
 
 	}
 	#### end of autoaction
@@ -58,6 +59,9 @@ module_declaration :
 	%verilog_msb = (); 
 	%verilog_lsb = (); 
 	%verilog_instances = ();
+	%verilog_functions = ();
+	%verilog_parameters = ();
+
 	1; 
 	}
 
@@ -76,8 +80,8 @@ module_declaration :
 	foreach $junk (@junk)
 		{
 		print "\t$junk";
-		if (defined($verilog_msb{$junk}))
-			{ print ' [ '.$verilog_msb{$junk}.' : '.$verilog_lsb{$junk}.' ] ';}
+		unless ( $verilog_msb{$junk} eq 'no_value' )
+			{ print ' [ '.$verilog_msb{$junk}->numeric.' : '.$verilog_lsb{$junk}->numeric.' ] ';}
 		print "\n";
 		}
 	print "\n\n";
@@ -89,8 +93,8 @@ module_declaration :
 	foreach $junk (@junk)
 		{
 		print "\t$junk";
-		if (defined($verilog_msb{$junk}))
-			{ print ' [ '.$verilog_msb{$junk}.' : '.$verilog_lsb{$junk}.' ] ';}
+		unless ( $verilog_msb{$junk} eq 'no_value' )
+			{ print ' [ '.$verilog_msb{$junk}->numeric.' : '.$verilog_lsb{$junk}->numeric.' ] ';}
 		print "\n";
 		}
 	print "\n\n";
@@ -102,8 +106,8 @@ module_declaration :
 	foreach $junk (@junk)
 		{
 		print "\t$junk";
-		if (defined($verilog_msb{$junk}))
-			{ print ' [ '.$verilog_msb{$junk}.' : '.$verilog_lsb{$junk}.' ] ';}
+		unless ( $verilog_msb{$junk} eq 'no_value' )
+			{ print ' [ '.$verilog_msb{$junk}->numeric.' : '.$verilog_lsb{$junk}->numeric.' ] ';}
 		print "\n";
 		}
 	print "\n\n";
@@ -116,8 +120,8 @@ module_declaration :
 		{
 		print "\t type $verilog_net{$junk} ";
 		print "\t$junk";
-		if (defined($verilog_msb{$junk}))
-			{ print ' [ '.$verilog_msb{$junk}.' : '.$verilog_lsb{$junk}.' ] ';}
+		unless ( $verilog_msb{$junk} eq 'no_value' )
+			{ print ' [ '.$verilog_msb{$junk}->numeric.' : '.$verilog_lsb{$junk}->numeric.' ] ';}
 		print "\n";
 		}
 	print "\n\n";
@@ -128,8 +132,8 @@ module_declaration :
 	foreach $junk (@junk)
 		{
 		print "\t$junk";
-		if (defined($verilog_msb{$junk}))
-			{ print ' [ '.$verilog_msb{$junk}.' : '.$verilog_lsb{$junk}.' ] ';}
+		unless ( $verilog_msb{$junk} eq 'no_value' )
+			{ print ' [ '.$verilog_msb{$junk}->numeric.' : '.$verilog_lsb{$junk}->numeric.' ] ';}
 		print "\n";
 		}
 	print "\n\n";
@@ -146,10 +150,29 @@ module_declaration :
 	print "\n\n";
 
 
+	print "contained the following function declarations :\n";
+	@junk = keys(%verilog_functions);
+	@junk = sort(@junk);
+	foreach $junk (@junk)
+		{
+		print "\t$junk\n";
+		}
+	print "\n\n";
+
+	print "contained the following parameters :\n";
+	@junk = keys(%verilog_parameters);
+	@junk = sort(@junk);
+	foreach $junk (@junk)
+		{
+		print "\t$junk\n";
+		}
+	print "\n\n";
+
+
 	1;
 	}
-
 	| <error?> <reject>
+
 module_keyword : 
         'module'  |  'macromodule'
 
@@ -219,30 +242,30 @@ port_bit_selection_or_bit_slice :
 
 
 module_item : 
-	module_item_declaration | 
-	parameter_override | 
-	continuous_assignment | 
-	module_instantiation | 
-	gate_instantiation | 
-	udp_instantiation | 
-	specify_block | 
-	initial_construct | 
-	always_construct
+	  continuous_assignment  
+	| always_construct
+	| initial_construct  
+	| specify_block  
+	| gate_instantiation  
+	| udp_instantiation  
+	| parameter_override  
+	| module_item_declaration  
+	| module_instantiation  
 
 module_item_declaration :
-        parameter_declaration | 
-        input_declaration | 
-        output_declaration | 
-        inout_declaration | 
-        net_declaration | 
-        reg_declaration | 
-        integer_declaration | 
-        real_declaration | 
-        time_declaration | 
-        realtime_declaration | 
-        event_declaration | 
-        task_declaration | 
-        function_declaration
+          input_declaration  
+        | output_declaration  
+        | inout_declaration  
+        | net_declaration  
+        | reg_declaration  
+        | parameter_declaration  
+        | integer_declaration 
+        | real_declaration  
+        | time_declaration  
+        | realtime_declaration  
+        | event_declaration  
+        | task_declaration  
+        | function_declaration
 
 parameter_override :
         'defparam'
@@ -269,10 +292,15 @@ parameter_declaration :
         parameter_assignment_comma_parameter_assignment
         ';'
 	| <error?> <reject>
+
 parameter_assignment : 
         parameter_identifier
         '=' 
         constant_expression
+	{
+	$verilog_parameters{$item{parameter_identifier}} = $item{constant_expression};
+	}
+
 
 input_declaration :
         'input'
@@ -281,6 +309,7 @@ input_declaration :
         direction_port_identifier_list[$item[1],@{$item{range}->[0]}]
         ';'
 	| <error?> <reject>
+
 output_declaration :
         'output'
 	<commit>
@@ -288,6 +317,7 @@ output_declaration :
         direction_port_identifier_list[$item[1],@{$item{range}->[0]}]
        ';'
 	| <error?> <reject>
+
 inout_declaration :
         'inout'
 	<commit>
@@ -305,55 +335,57 @@ comma_direction_port_identifier :
 	<commit>
 	direction_port_identifier[@arg]
 	| <error?> <reject>
+
 direction_port_identifier :
 	port_identifier
 	{
-	$verilog_msb{$item{port_identifier}} = $arg[1];
-	$verilog_lsb{$item{port_identifier}} = $arg[2];
-	if ($arg[0] eq 'input')
+	my $dir = $arg[0];
+	my $msb = $arg[1];
+	my $lsb = $arg[2];
+	my $net_name = $item{port_identifier};
+
+	$msb = 'no_value' unless(defined($msb));
+	$lsb = 'no_value' unless(defined($lsb));
+
+	$verilog_msb{$net_name} = $msb;
+	$verilog_lsb{$net_name} = $lsb;
+
+
+	if ($dir eq 'input')
 		{
-		#if(exists($verilog_input{$item{port_identifier}}))
-		#	{
-		#	$junk{'direction'} = 'input';
-		#	$junk{'name'} = $item{port_identifier};
-		#	undef;
-		#	}
-		#else
-			{
-			$verilog_input{$item{port_identifier}} = 1;
-			$verilog_net{$item{port_identifier}} = 'wire';
-			1; 
-			}
+		$verilog_input{$net_name} = 1;
+		$verilog_net{$net_name} = 'wire';
+		1; 
 		}
 
-	elsif ($arg[0] eq 'inout')
+	elsif ($dir eq 'inout')
 		{
-		if(exists($verilog_inout{$item{port_identifier}}))
+		if(exists($verilog_inout{$net_name}))
 			{
 			$junk{'direction'} = 'inout';
-			$junk{'name'} = $item{port_identifier};
+			$junk{'name'} = $net_name;
 			undef;
 			}
 		else
 			{
-			$verilog_inout{$item{port_identifier}} = 1;
-			$verilog_net{$item{port_identifier}} = 'wire';
+			$verilog_inout{$net_name} = 1;
+			$verilog_net{$net_name} = 'wire';
 			1; 
 			}
 		}
 
-	elsif ($arg[0] eq 'output')
+	elsif ($dir eq 'output')
 		{
-		if(exists($verilog_output{$item{port_identifier}}))
+		if(exists($verilog_output{$net_name}))
 			{
 			$junk{'direction'} = 'output';
-			$junk{'name'} = $item{port_identifier};
+			$junk{'name'} = $net_name;
 			undef;
 			}
 		else
 			{
-			$verilog_output{$item{port_identifier}} = 1;
-			$verilog_net{$item{port_identifier}} = 'wire';
+			$verilog_output{$net_name} = 1;
+			$verilog_net{$net_name} = 'wire';
 			1; 
 			}
 		}
@@ -371,18 +403,20 @@ reg_declaration :
         declare_register_name_comma_declare_register_name[$item[1],@{$item{range}->[0]}]
         ';'
 	| <error?> <reject>
+
 time_declaration :  
         'time'
 	<commit>
-        declare_register_name_comma_declare_register_name[$item[1]]
+        declare_register_name_comma_declare_register_name[$item[1],'no_value', 'no_value']
         ';'
 
 integer_declaration :  
         'integer'
  	<commit>
-       declare_register_name_comma_declare_register_name[$item[1]]
+       declare_register_name_comma_declare_register_name[$item[1],'no_value', 'no_value']
         ';'
 	| <error?> <reject>
+
 declare_register_name_comma_declare_register_name :
 	declare_register_name[@arg]
 	comma_declare_register_name[@arg](s?)
@@ -392,9 +426,12 @@ comma_declare_register_name :
 	<commit>
 	declare_register_name[@arg]
 	| <error?> <reject>
+
 declare_register_name :
 	register_name
+	range(?)
 	{ 
+
 	$verilog_msb{$item{register_name}} = $arg[1];
 	$verilog_lsb{$item{register_name}} = $arg[2];
 	if(exists($verilog_reg{$item{register_name}}))
@@ -465,10 +502,21 @@ range :
         ']'
 	{
 	my $msb = $item{msb_constant_expression};
+	$msb = 'no_value' unless (defined($msb));
 	my $lsb = $item{lsb_constant_expression};
-	$return = [ $msb->numeric , $lsb->numeric ];
+	$lsb = 'no_value' unless (defined($lsb));
+	$return = [ $msb , $lsb ];
 	}
+
+	|
+	{
+	$return = [ 'no_value' , 'no_value' ];
+	}
+	
 	| <error?> <reject>
+
+
+
 msb_constant_expression :
 	constant_expression
 
@@ -476,9 +524,9 @@ lsb_constant_expression :
 	constant_expression
 
 net_declaration : 
-        net_type_vectored_scalared_range_delay3_list_of_net_identifiers | 
-        trireg_vectored_scalared_charge_strength_range_delay3_list_of_net |
-        net_type_vectored_scalared_drive_strength_range_delay3_list_of_net_decl
+          net_type_vectored_scalared_range_delay3_list_of_net_identifiers  
+        | net_type_vectored_scalared_drive_strength_range_delay3_list_of_net_decl
+        | trireg_vectored_scalared_charge_strength_range_delay3_list_of_net 
 
 net_type_vectored_scalared_range_delay3_list_of_net_identifiers : 
         net_type
@@ -486,46 +534,42 @@ net_type_vectored_scalared_range_delay3_list_of_net_identifiers :
         vectored_or_scalared(?)
         range(?)
         delay3(?)
-        declaring_net_identifier_comma_declaring_net_identifier
+        declaring_net_identifier_comma_declaring_net_identifier[$item{net_type},@{$item{range}->[0]}]
         ';'
 	| <error?> <reject>
+
 declaring_net_identifier_comma_declaring_net_identifier :
-	declaring_net_identifier
-	comma_declaring_net_identifier(s?)
+	declaring_net_identifier[@arg]
+	comma_declaring_net_identifier[@arg](s?)
 
 comma_declaring_net_identifier :
 	','
 	<commit>
-	declaring_net_identifier
+	declaring_net_identifier[@arg]
 	| <error?> <reject>
+
 declaring_net_identifier : 
 	net_identifier
-	{ 
-	#if(exists($verilog_net{$item{net_identifier}}))
-	#	{
-	#	$junk[0] = $item{net_identifier};
-	#	$return = undef;
-	#	undef;
-	#	}
-	#else
-
-		{
-		$verilog_net{$item{net_identifier}} = $last_encountered_net_type;
-		1; 
-		}
+	{
+	my $net_name = $item{net_identifier};
+	$verilog_net{$item{net_identifier}} = $arg[0];
+	$verilog_msb{$net_name} = $arg[1];
+	$verilog_lsb{$net_name} = $arg[2];
+	1; 
 	}
 	| <error: redeclaring net "$junk[0]">
 
 trireg_vectored_scalared_charge_strength_range_delay3_list_of_net : 
-        'trireg' { $last_encountered_net_type = 'trireg'; }
+        'trireg' 
 	<commit>
         vectored_or_scalared(?)
         charge_strength(?)
         range(?)
         delay3(?)                
-        declaring_net_identifier_comma_declaring_net_identifier
+        declaring_net_identifier_comma_declaring_net_identifier[ 'trireg' ,@{$item{range}->[0]}]
         ';'
 	| <error?> <reject>
+
 net_type_vectored_scalared_drive_strength_range_delay3_list_of_net_decl :
         net_type
 	<commit>
@@ -536,6 +580,7 @@ net_type_vectored_scalared_drive_strength_range_delay3_list_of_net_decl :
         net_decl_assignment_comma_net_decl_assignment
         ';'
 	| <error?> <reject>
+
 net_decl_assignment_comma_net_decl_assignment :
 	net_decl_assignment
 	comma_net_decl_assignment(s?)
@@ -545,32 +590,32 @@ comma_net_decl_assignment :
 	<commit>
 	net_decl_assignment
 	| <error?> <reject>
+
 vectored_or_scalared :
 	'vectored' | 'scalared'
 
 net_type :  
-        'supply0'  	{$last_encountered_net_type = 'supply0';}  |
-        'supply1'  	{$last_encountered_net_type = 'supply1';}  |  
-        'triand'  	{$last_encountered_net_type = 'triand';}   |  
-        'trior' 	{$last_encountered_net_type = 'trior';}    |
-        'wire'  	{$last_encountered_net_type = 'wire';}     |  
-        'wand'   	{$last_encountered_net_type = 'wand';}     |  
-        'tril'  	{$last_encountered_net_type = 'tril';}     |  
-        'tri0'  	{$last_encountered_net_type = 'tri0';}     | 
-        'tri'  		{$last_encountered_net_type = 'tri';}      |  
-        'wor' 	 	{$last_encountered_net_type = 'wor';}        
+        'wire'  	{$return = 'wire';}     |  
+        'supply0'  	{$return = 'supply0';}  |
+        'supply1'  	{$return = 'supply1';}  |  
+        'triand'  	{$return = 'triand';}   |  
+        'trior' 	{$return = 'trior';}    |
+        'tril'  	{$return = 'tril';}     |  
+        'tri0'  	{$return = 'tri0';}     | 
+        'tri'  		{$return = 'tri';}      |  
+        'wand'   	{$return = 'wand';}     |  
+        'wor' 	 	{$return = 'wor';}        
 
 
 drive_strength : 
         '('
         (
-        strength0_comma_strength1 |
-        strength1_comma_strength0 |
-        strength0_comma_highz1 |
-
-        strength1_comma_highz0 |
-        highz1_comma_strength0 |
-        highz0_comma_strength1 
+        	  strength0_comma_strength1 
+        	| strength1_comma_strength0 
+        	| strength0_comma_highz1 
+        	| strength1_comma_highz0 
+        	| highz1_comma_strength0 
+        	| highz0_comma_strength1 
         )
         ')'
 
@@ -604,39 +649,53 @@ charge_strength :
 	'small'    |  'medium'      |  'large'  
 
 
+
+#
+#
+#    need to clean up "delay" rule definitions.
+#
+#
+
 delay3 :  
-        '#'
-        '('
-        ( one_delay_value |
-          two_delay_values |
-        three_delay_values )
-        ')'
+	'#'
+	(
+		paren_up_to_3_delay_values
+		| delay_value
+	)
+
+paren_up_to_3_delay_values :
+	'('
+	<commit>
+	delay_value
+	comma_delay_value(?)
+	comma_delay_value(?)
+	')'
+	| <error?> <reject>
 
 delay2 :  
-        '#'
-        '('
-        ( one_delay_value |
-          two_delay_values )
-        ')'
+	'#'
+	(
+		paren_up_to_2_delay_values
+		| delay_value
+	)
 
-delay1 :  
-        '#'
-        '('
-        one_delay_value 
-        ')'
+paren_up_to_2_delay_values :
+	'('
+	<commit>
+	delay_value
+	comma_delay_value(?)
+	')'
+	| <error?> <reject>
 
-one_delay_value : 
-        delay_value
 
-two_delay_values :
-        delay_value ',' delay_value
+comma_delay_value :
+	','
+	<commit>
+	delay_value
+	| <error?> <reject>
 
-three_delay_values :
-        delay_value ',' delay_value ',' delay_value
-        
+
 delay_value :  
-	unsigned_number  |  
-          parameter_identifier  | 
           constant_mintypmax_expression
 
 net_decl_assignment :
@@ -654,7 +713,11 @@ function_declaration :
         function_item_declaration(s)
         statement
         'endfunction'
+	{
+	$verilog_functions{$item{function_identifier}} = 1;
+	}
 	| <error?> <reject>
+
 range_or_type :
 	range  |  'integer'  |  'real'  |  'realtime'  |  'time'
 
@@ -671,6 +734,7 @@ task_declaration :
         statement_or_null
         'endtask'
 	| <error?> <reject>
+
 task_item_declaration : 
         block_item_declaration | 
         input_declaration | 
@@ -713,6 +777,7 @@ n_input_gatetype_drive_strength_delay2_n_input_gate_instance :
         n_input_gate_instance_comma_n_input_gate_instance
         ';'
 	| <error?> <reject>
+
 n_input_gate_instance_comma_n_input_gate_instance : 
 	n_input_gate_instance
 	comma_n_input_gate_instance(s?)
@@ -722,14 +787,16 @@ comma_n_input_gate_instance :
 	<commit>
 	n_input_gate_instance
 	| <error?> <reject>
+
 n_output_gatetype_drive_strength_delay2_n_output_gate_instance : 
         n_output_gatetype
 	<commit>
-        drive_strength(?)
+        drive_strength(?) 
         delay2(?)
         n_output_gate_instance_comma_n_output_gate_instance
         ';'
 	| <error?> <reject>
+
 n_output_gate_instance_comma_n_output_gate_instance :
 	n_output_gate_instance
 	comma_n_output_gate_instance(s?)
@@ -739,6 +806,7 @@ comma_n_output_gate_instance :
 	<commit>
 	n_output_gate_instance
 	| <error?> <reject>
+
 enable_gatetype_drive_strength_delay3_enable_gate_instance : 
         enable_gatetype
 	<commit>
@@ -747,6 +815,7 @@ enable_gatetype_drive_strength_delay3_enable_gate_instance :
         enable_gate_instance_comma_enable_gate_instance
         ';'
 	| <error?> <reject>
+
 enable_gate_instance_comma_enable_gate_instance :
 	enable_gate_instance
 	comma_enable_gate_instance(s?)
@@ -756,6 +825,7 @@ comma_enable_gate_instance :
 	<commit>
 	enable_gate_instance
 	| <error?> <reject>
+
 mos_switchtype_delay3_mos_switch_instance :
         mos_switchtype
 	<commit>
@@ -763,6 +833,7 @@ mos_switchtype_delay3_mos_switch_instance :
         mos_switch_instance_comma_mos_switch_instance
         ';'
 	| <error?> <reject>
+
 mos_switch_instance_comma_mos_switch_instance :
 	mos_switch_instance
 	comma_mos_switch_instance(s?)
@@ -772,12 +843,14 @@ comma_mos_switch_instance :
 	<commit>
 	mos_switch_instance
 	| <error?> <reject>
+
 pass_switchtype_pass_switch_instance : 
         pass_switchtype
 	<commit>
         pass_switch_instance_comma_pass_switch_instance
         ';'
 	| <error?> <reject>
+
 pass_switch_instance_comma_pass_switch_instance :
 	pass_switch_instance
 	comma_pass_switch_instance(s?)
@@ -787,6 +860,7 @@ comma_pass_switch_instance :
 	<commit>
 	pass_switch_instance
 	| <error?> <reject>
+
 pass_en_switchtype_delay3_pass_enable_switch_instance : 
         pass_en_switchtype
 	<commit>
@@ -794,6 +868,7 @@ pass_en_switchtype_delay3_pass_enable_switch_instance :
         pass_enable_switch_instance_comma_pass_enable_switch_instance
         ';'
 	| <error?> <reject>
+
 pass_enable_switch_instance_comma_pass_enable_switch_instance :
 	pass_enable_switch_instance 
 	comma_pass_enable_switch_instance(s?)
@@ -803,6 +878,7 @@ comma_pass_enable_switch_instance :
 	<commit>
 	pass_enable_switch_instance
 	| <error?> <reject>
+
 cmos_switchtype_delay3_cmos_switch_instance : 
         cmos_switchtype
  	<commit>
@@ -810,6 +886,7 @@ cmos_switchtype_delay3_cmos_switch_instance :
         cmos_switch_instance_comma_cmos_switch_instance
         ';'
 	| <error?> <reject>
+
 cmos_switch_instance_comma_cmos_switch_instance : 
 	cmos_switch_instance
 	comma_cmos_switch_instance(s?)
@@ -827,6 +904,7 @@ pullup_pullup_strength_pull_gate_instance :
         pull_gate_instance_comma_pull_gate_instance
         ';'
 	| <error?> <reject>
+
 pull_gate_instance_comma_pull_gate_instance :
 	pull_gate_instance
 	comma_pull_gate_instance(s?)
@@ -836,6 +914,7 @@ comma_pull_gate_instance :
 	<commit>
 	pull_gate_instance
 	| <error?> <reject>
+
 pulldown_pulldown_strength_pull_gate_instance : 
         'pulldown'
 	<commit>
@@ -843,11 +922,13 @@ pulldown_pulldown_strength_pull_gate_instance :
         pull_gate_instance_comma_pull_gate_instance
         ';'
 	| <error?> <reject>
+
 n_input_gate_instance : 
         name_of_gate_instance(?) 
-        '('
-         output_terminal ','
-         input_terminal_comma_input_terminal ','
+        '(' 
+         output_terminal 
+	',' 
+         input_terminal_comma_input_terminal 
         ')'
 
 input_terminal_comma_input_terminal :
@@ -859,11 +940,16 @@ comma_input_terminal :
 	<commit>
 	input_terminal
 	| <error?> <reject>
+
 n_output_gate_instance : 
         name_of_gate_instance(?) 
         '('
-        output_terminal_comma_output_terminal ','
-        input_terminal
+        output_terminal_comma_output_terminal 
+
+	# rules need to figure out what is an output terminal and what is an input terminal
+	# otherwise, above rule sucks up all the terminals, and
+	# the rest of the rule, i.e. ( ',' input_terminal ) fails.
+	#  ',' input_terminal
         ')'
 
 output_terminal_comma_output_terminal :
@@ -875,6 +961,7 @@ comma_output_terminal :
 	<commit>
 	output_terminal
 	| <error?> <reject>
+
 enable_gate_instance : 
         name_of_gate_instance(?) 
         '('
@@ -962,10 +1049,19 @@ pcontrol_terminal :
         scalar_expression 
 
 output_terminal :        
-        terminal_identifier  constant_expression(?)
+        terminal_identifier  bit_selection(?)
 
 inout_terminal : 
-        terminal_identifier  constant_expression(?)
+        terminal_identifier  bit_selection(?)
+
+
+bit_selection :
+	'['
+	<commit>
+	expression
+	']'
+	| <error?> <reject>
+
 
 n_input_gatetype :  
 	'and'  |  'nand'  |  'or'  |  'nor'  |  'xor'  |  'xnor'  
@@ -1018,6 +1114,7 @@ parameter_value_assignment :
         expression_comma_expression 
         ')' 
 	| <error?> <reject>
+
 module_instance :  
         name_of_instance  
         '('
@@ -1034,7 +1131,6 @@ name_of_instance :
 	{
 	$return = [ $item{module_instance_identifier}, $item{range} ];
 	}
-	| <error>
 
 list_of_module_connections :
 	  named_port_connection_comma_named_port_connection 
@@ -1043,7 +1139,6 @@ list_of_module_connections :
 ordered_port_connection_comma_ordered_port_connection :
 	ordered_port_connection
 	comma_ordered_port_connection(s?)
-	| <error>
 
 comma_ordered_port_connection :
 	','
@@ -1068,12 +1163,18 @@ comma_named_port_connection :
 	$return = $item{named_port_connection};
 	}
 	| <error?> <reject>
+
 ordered_port_connection :  
         expression
 	{
 	$return = 'expression';
 	}
-	| <error>
+	|  # or nothing. ordered port connections can be U1(  ,a, ,c,  );
+	{
+	$return = 'no_connection';
+	}
+
+
 
 named_port_connection :
         '.' 
@@ -1112,6 +1213,7 @@ comma_input_port_identifier :
 	<commit>
 	input_port_identifier
 	| <error?> <reject>
+
 udp_port_declaration : 
           output_declaration 
 	| input_declaration 
@@ -1243,13 +1345,14 @@ output_port_connection :
 #####################################################################
 
 continuous_assignment : 
-        'assign'
+        'assign'				
 	<commit>
-        drive_strength(?)
-        delay3(?)
-        net_assignment_comma_net_assignment
+        drive_strength(?)			
+        delay3(?)				
+        net_assignment_comma_net_assignment	
         ';'
 	| <error?> <reject>
+
 net_assignment_comma_net_assignment :
 	net_assignment
 	comma_net_assignment(s?)
@@ -1259,6 +1362,7 @@ comma_net_assignment :
 	<commit>
 	net_assignment
 	| <error?> <reject>
+
 net_assignment : 
         net_lvalue '=' expression
 
@@ -1267,11 +1371,13 @@ initial_construct :
 	<commit>
 	statement
 	| <error?> <reject>
+
 always_construct : 
         'always' 
 	<commit>
 	statement
 	| <error?> <reject>
+
 statement :
 	  procedural_timing_control_statement 
 	| procedural_continuous_assignment_with_semicolon 
@@ -1288,6 +1394,81 @@ statement :
 	| blocking_assignment_with_semicolon
 	| non_blocking_assignment_with_semicolon 
 
+procedural_timing_control_statement : 
+        delay_or_event_control 
+        statement_or_null
+
+procedural_continuous_assignment_with_semicolon :
+	procedural_continuous_assignment 
+	';'
+
+seq_block : 
+        'begin' 
+	<commit>
+        block_identifier_block_item_declaration(?)      
+        statement(s?)
+        'end'
+	| <error?> <reject>
+
+conditional_statement : 
+        'if' 
+	<commit>
+	'(' expression ')'
+        statement_or_null 
+        else_statement_or_null(?)
+	| <error?> <reject>
+
+case_statement : 
+	  casez_endcase  
+	| casex_endcase
+	| case_endcase  
+
+loop_statement : 
+	  forever_statement 
+	| repeat_expression_statement  
+	| while_expression_statement  
+	| for_reg_assignment_expression_reg_assignment_statement
+
+wait_statement : 
+        'wait' 
+	<commit>
+        '(' 
+        expression 
+        ')' 
+        statement_or_null
+	| <error?> <reject>
+
+disable_statement : 
+        'disable' 
+ 	<commit>
+       ( task_identifier | block_identifer ) 
+        ';'                
+	| <error?> <reject>
+
+event_trigger : 
+        '->' 
+	<commit>
+	event_identifier ';'
+	| <error?> <reject>
+
+par_block : 
+        'fork' 
+	<commit>
+        block_identifier_block_item_declaration(?)      
+        statement(s?)
+        'join'
+	| <error?> <reject>
+
+task_enable : 
+        task_identifier
+        expression_list_in_paren(?)
+        ';'
+
+system_task_enable :
+        system_task_name
+        expression_list_in_paren(?)
+        ';'
+
 blocking_assignment_with_semicolon :
 	blocking_assignment 
 	';'
@@ -1296,13 +1477,28 @@ non_blocking_assignment_with_semicolon :
 	non_blocking_assignment 
 	';'
 
-procedural_continuous_assignment_with_semicolon :
-	procedural_continuous_assignment 
-	';'
+
+case_endcase :
+        'case' 
+	<commit>
+	expression_case_item_list 'endcase'
+	| <error?> <reject>
+
+casez_endcase :
+        'casez' 
+	<commit>
+	expression_case_item_list 'endcase'
+	| <error?> <reject>
+
+casex_endcase :
+        'casex' 
+	<commit>
+	expression_case_item_list 'endcase'
+	| <error?> <reject>
+
 
 statement_or_null : 
         statement | ';'
-
 
 
 blocking_assignment :
@@ -1312,6 +1508,7 @@ blocking_assignment :
         delay_or_event_control(?)
         expression
 	| <error?> <reject>
+
 non_blocking_assignment :
         reg_lvalue 
         '<='
@@ -1333,11 +1530,13 @@ assign_reg_assignment :
 	<commit>
 	reg_assignment ';'
 	| <error?> <reject>
+
 deassign_reg_lvalue :
         'deassign' 
 	<commit>
 	reg_lvalue ';'
 	| <error?> <reject>
+
 force_reg_assignment :
         'force' 
 	reg_assignment ';'
@@ -1354,28 +1553,17 @@ release_net_lvalue :
         'release' 
 	net_lvalue ';'
 
-procedural_timing_control_statement : 
-        delay_or_event_control 
-        statement_or_null
-
 delay_or_event_control : 
           delay_control
         | event_control
         | repeat_expression_event_control
 
-repeat_expression_event_control :
-	'repeat'
-	<commit>
-	'('
-	expression
-	')'
-	event_control
-	| <error?> <reject>
 delay_control :
 	'#' 
 	<commit>
 	delay_value_or_mintypmax_expression_in_paren                
 	| <error?> <reject>
+
 delay_value_or_mintypmax_expression_in_paren :
 	delay_value | mintypmax_expression_in_paren
 
@@ -1387,6 +1575,7 @@ event_control :
 	<commit>
 	event_identifier_or_event_expression_list_in_paren
 	| <error?> <reject>
+
 event_identifier_or_event_expression_list_in_paren :
 	  event_expression_list_in_paren
 	| event_identifier
@@ -1401,11 +1590,12 @@ or_event_expression :
 	<commit>
 	event_expression
 	| <error?> <reject>
+
 event_expression : 
 	  posedge_expression 
 	| negedge_expression 
-	| event_identifier 
 	| expression 
+	| event_identifier 
 
 posedge_expression :
         'posedge' 
@@ -1418,39 +1608,22 @@ negedge_expression :
         expression
 	| <error?> <reject>
 
-conditional_statement : 
-        'if' 
+repeat_expression_event_control :
+	'repeat'
 	<commit>
-	'(' expression ')'
-        statement_or_null 
-        else_statement_or_null(?)
+	'('
+	expression
+	')'
+	event_control
 	| <error?> <reject>
+
+
 else_statement_or_null :
         'else'
 	<commit>
         statement_or_null
 	| <error?> <reject>
 
-case_statement : 
-	  casez_endcase  
-	| casex_endcase
-	| case_endcase  
-
-case_endcase :
-        'case' 
-	<commit>
-	expression_case_item_list 'endcase'
-	| <error?> <reject>
-casez_endcase :
-        'casez' 
-	<commit>
-	expression_case_item_list 'endcase'
-	| <error?> <reject>
-casex_endcase :
-        'casex' 
-	<commit>
-	expression_case_item_list 'endcase'
-	| <error?> <reject>
 expression_case_item_list :
         '(' expression ')' case_item(s)
 
@@ -1469,12 +1642,6 @@ default_statement_or_null :
         ':'
         statement_or_null
 	| <error?> <reject>
-
-loop_statement : 
-	  forever_statement 
-	| repeat_expression_statement  
-	| while_expression_statement  
-	| for_reg_assignment_expression_reg_assignment_statement
 
 forever_statement :
         'forever'
@@ -1507,61 +1674,22 @@ for_reg_assignment_expression_reg_assignment_statement :
 reg_assignment : 
         reg_lvalue '=' expression 
 
-wait_statement : 
-        'wait' 
-	<commit>
-        '(' 
-        expression 
-        ')' 
-        statement_or_null
-	| <error?> <reject>
-event_trigger : 
-        '->' 
-	<commit>
-	event_identifier ';'
-	| <error?> <reject>
-disable_statement : 
-        'disable' 
- 	<commit>
-       ( task_identifier | block_identifer ) 
-        ';'                
-	| <error?> <reject>
-seq_block : 
-        'begin' 
-	<commit>
-        block_identifier_block_item_declaration(?)      
-        statement(s?)
-        'end'
-	| <error?> <reject>
-par_block : 
-        'fork' 
-	<commit>
-        block_identifier_block_item_declaration(?)      
-        statement(s?)
-        'join'
-	| <error?> <reject>
 block_identifier_block_item_declaration :
 	':'
 	<commit>
+	block_identifier
 	block_item_declaration(s?)
 	| <error?> <reject>
-task_enable : 
-        task_identifier
-        expression_list_in_paren(?)
-        ';'
 
 expression_list_in_paren :
         '('
         expression_comma_expression
         ')'
 
-system_task_enable :
-        system_task_name
-        expression_list_in_paren(?)
-        ';'
-
 system_task_name :
-        '$' identifier   # note a space should not be allowed between $ and ident
+        '$'
+	<skip:''>
+	identifier 
 
 
 
@@ -1574,9 +1702,10 @@ system_task_name :
 specify_block :
         'specify'
 	<commit>
-        specify_item(?)
+        specify_item(s?)
         'endspecify'
 	| <error?> <reject>
+
 specify_item :
 	  specparam_declaration   
 	| path_declaration  
@@ -1588,6 +1717,7 @@ specparam_declaration :
         specparam_assignment_comma_specparam_assignment
         ';'
 	| <error?> <reject>
+
 specparam_assignment_comma_specparam_assignment :
 	specparam_assignment
 	comma_specparam_assignment(s?)
@@ -1597,6 +1727,7 @@ comma_specparam_assignment :
 	<commit>
 	specparam_assignment
 	| <error?> <reject>
+
 specparam_assignment :
  	  specparam_identifier_equal_constant_expression  
 	| pulse_control_specparam
@@ -1636,6 +1767,7 @@ pathpulse_specify_input_terminal_descriptor :
         comma_erro_limit_value(?)
         ')' ';'
 	| <error?> <reject>
+
 limit_value :
         constant_mintypmax_expression
 
@@ -1699,13 +1831,12 @@ comma_specify_output_terminal_descriptor :
 	<commit>
 	specify_output_terminal_descriptor
 	| <error?> <reject>
+
 specify_input_terminal_descriptor : 
         input_identifier 
-       	bit_selection_or_bit_slice(?)
 
 specify_output_terminal_descriptor : 
         output_identifier 
-        bit_selection_or_bit_slice(?)
 
 input_identifier : 
 	  input_port_identifier 
@@ -1860,6 +1991,7 @@ if_conditional_expression_simple_or_edge_path_declaration :
         '(' conditional_expression ')'
         simple_path_or_edge_sensitive_path_declaration 
 	| <error?> <reject>
+
 simple_path_or_edge_sensitive_path_declaration :
           simple_path_declaration
         | edge_sensitive_path_declaration
@@ -1869,6 +2001,7 @@ ifnone_simple_path_declaration :
 	<commit>
         simple_path_declaration
 	| <error?> <reject>
+
 system_timing_check : 
 	  setuphold_timing_check  
 	| hold_timing_check  
@@ -1880,16 +2013,19 @@ system_timing_check :
 
 
 setup_timing_check :
-        '$setup'
+        '$setup' 			
 	<commit>
-        '(' 
-        timing_check_event ','
-        timing_check_event ','
-        timing_check_limit 
-        comma_notify_register(?)
-        ')' 
-        ';'
+        '(' 				
+        timing_check_event 		
+	','				
+        timing_check_event 		
+	','				
+        timing_check_limit 		
+        comma_notify_register(?)	
+        ')' 				
+        ';'				
 	| <error?> <reject>
+
 hold_timing_check :
         '$hold'
 	<commit>
@@ -1901,6 +2037,7 @@ hold_timing_check :
         ')' 
         ';'
 	| <error?> <reject>
+
 period_timing_check :
         '$period'
 	<commit>
@@ -1911,6 +2048,7 @@ period_timing_check :
         ')' 
         ';'
 	| <error?> <reject>
+
 width_timing_check :
         '$width'
 	<commit>
@@ -1922,6 +2060,7 @@ width_timing_check :
         ')' 
         ';'
 	| <error?> <reject>
+
 skew_timing_check :
         '$skew'
 	<commit>
@@ -1958,24 +2097,27 @@ setuphold_timing_check :
         ')' 
         ';'
 	| <error?> <reject>
+
 comma_notify_register :
          ',' 
 	<commit>
 	notify_register
 	| <error?> <reject>
+
 timing_check_event :
-        timing_check_event_control(?)        
-        specify_terminal_descriptor
-        ampersand_timing_check_condition(?)
+        timing_check_event_control(?)        	
+        specify_terminal_descriptor 		
+        ampersand_timing_check_condition(?) 	
 
 ampersand_timing_check_condition : 
         '&&&' 
 	<commit>
 	timing_check_condition
 	| <error?> <reject>
+
 specify_terminal_descriptor :
-	  specify_input_terminal_descriptor 
-	| specify_output_terminal_descriptor
+	  specify_input_terminal_descriptor  
+	| specify_output_terminal_descriptor 
 
 controlled_timing_check_event : 
         timing_check_event_control
@@ -1983,6 +2125,7 @@ controlled_timing_check_event :
         specify_terminal_descriptor
         ampersand_timing_check_condition(?)
 	| <error?> <reject>
+
 timing_check_event_control :
 	  'posedge'  
 	| 'negedge'  
@@ -2000,6 +2143,7 @@ comma_edge_descriptor :
 	<commit>
 	edge_descriptor
 	| <error?> <reject>
+
 edge_descriptor :  
           '01' | '10' | '0x' | 'x1' | ' 1x' | 'x0'  
 
@@ -2073,6 +2217,7 @@ comma_expression :
 	<commit>
 	expression
 	| <error?> <reject>
+
 bit_selection_or_bit_slice :
 	'['
 	<commit>
@@ -2080,6 +2225,7 @@ bit_selection_or_bit_slice :
 	colon_expression(?)
 	']'
 	| <error?> <reject>
+
 colon_expression :
 	':'
 	<commit>
@@ -2168,6 +2314,7 @@ question_constant_expr_colon_constant_expr :
 	1;
 	}
 	| <error?> <reject>
+
 # must be able to handle 
 # 4
 # 4 + 3
@@ -2231,8 +2378,25 @@ constant_uni_expr :
 constant_primary : 
 	  constant_replication	 
 	| number 		
-	| parameter_identifier	 
+	| return_parameter_value	 
 	| constant_concatenation 
+	| string_literal
+
+return_parameter_value : 
+	identifier
+	{
+	if(defined($verilog_parameters{$item{identifier}}))
+		{
+		$return =  $verilog_parameters{$item{identifier}};
+		1;
+		}
+	else
+		{
+		$return = undef;
+		undef;
+		}
+	}
+
 
 constant_replication :
 	'{'
@@ -2262,6 +2426,7 @@ colon_constant_expression_colon_constant_expression :
         ':'
         constant_expression 
 	| <error?> <reject>
+
 mintypmax_expression :        
         expression 
         colon_expression_colon_expression(?)
@@ -2338,9 +2503,9 @@ binary_operator :
 primary : 
 	  replication
 	| number 
+	| function_call  
 	| identifier_bit_selection_or_bit_slice 
 	| concatenation 
-	| function_call  
 	| mintypmax_expression_in_paren 
  
 replication :
@@ -2354,126 +2519,85 @@ mintypmax_expression_in_paren :
         '(' mintypmax_expression ')'
 
 number : 
-	  binary_number  
-	| hex_number  
-	| octal_number  
+	  base_indicating_number  
 	| real_number
-	| decimal_number  
+
+base_indicating_number :
+        size_of_based_number   # note: size is optional, rule will return an empty string if no size is given.
+	"'" 
+	<commit>
+	based_number
+		{
+		$return = Hardware::Verilog::StdLogic->new($item{size_of_based_number} . "'" . $item{based_number} );
+		}
+	| <error?> <reject>
+
+size_of_based_number : 
+	/([0-9][0-9_]*)/
+	{ $return = $1; }
+	|
+	{ $return = ''; 1; }
+
+based_number : 
+	<skip:''>
+	  base_bin_number
+	| base_hex_number
+	| base_dec_number
+	| base_oct_number
+
+base_bin_number :
+	/([bB]\s*[xXzZ01][xXzZ01_]*)/ 
+	{ $return = $1; }
+
+base_hex_number :
+	/([oO]\s*[xXzZ0-7][xXzZ0-7_]*)/ 
+	{ $return = $1; }
+
+base_dec_number :
+	/([hH]\s*[xXzZ0-9a-fA-F][xXzZ0-9a-fA-F_]*)/ 
+	{ $return = $1; }
+
+base_oct_number :
+	/([dD]\s*[0-9][0-9_]*)/ 
+	{ $return = $1; }
 
 real_number : 
         optional_sign 
-        ( two_unsigned_numbers_separated_by_decimal_point_with_exponent |
-          two_unsigned_numbers_separated_by_decimal_point |
-          unsigned_number_with_exponent
-        )
-
-
-two_unsigned_numbers_separated_by_decimal_point :
-        /[0-9_].*\.[0-9_].*/
-
-unsigned_number_with_exponent :
-        unsigned_number ( 'e' | 'E' ) optional_sign unsigned_number
-
-two_unsigned_numbers_separated_by_decimal_point_with_exponent : 
-        two_unsigned_numbers_separated_by_decimal_point
-         ( 'e' | 'E' ) optional_sign unsigned_number
-
-decimal_number : 
-	  size_decimal_base_unsigned_number 
-	| sign_unsigned_number 
-
-sign_unsigned_number :
-        optional_sign 
 	unsigned_number
-	
+	<skip:''>
+	decimal_point_unsigned_number(?)
+	exponent(?)
 		{
-		my $obj = Hardware::Verilog::StdLogic->new($item[2]);
+		my $obj = Hardware::Verilog::StdLogic->new($item{unsigned_number});
 		# $obj = $obj->minus;
 		$return = $obj;
 		}
-
 
 optional_sign :
 	  '-' {$return = '-';}
 	| '+' {$return = '+';}
 	|     {$return = '+';}
 
-size_decimal_base_unsigned_number :
-        size(?) 
-	decimal_base 
-	<commit>
-	unsigned_number
-
-		{
-		$return = Hardware::Verilog::StdLogic->new($item[1]->[0] . $item[2] . $item[4] );
-		}
-
-	| <error?> <reject>
-binary_number : 
-	size(?)  
-        binary_base 
-	<commit>
-        binary_digits
-
-		{
-		$return = Hardware::Verilog::StdLogic->new($item[1]->[0] . $item[2] . $item[4] );
-		}
-
-	| <error?> <reject>
-octal_number : 
-	size(?) 
-        octal_base 
-	<commit>
-        octal_digits
-		{
-		$return = Hardware::Verilog::StdLogic->new($item[1]->[0] . $item[2] . $item[4] );
-		}
-	| <error?> <reject>
-
-hex_number : 
-        size(?) 
-        hex_base 
-	<commit>
-        hex_digits
-		{
-		$return = Hardware::Verilog::StdLogic->new($item[1]->[0] . $item[2] . $item[4] );
-		}
-
-
-
-	| <error?> <reject>
-size : 
-	unsigned_number
-
 unsigned_number : 
-	decimal_digits
+	/[0-9][0-9_]*/
+
+decimal_point_unsigned_number :
+	<skip:''>
+	'.'
+	<commit>
+	unsigned_number	
+	| <error?> <reject>
+
+exponent :
+	<skip:''>
+	/[eE]/
+	<commit>
+	optional_sign 
+	unsigned_number
+	| <error?> <reject>
 
 
-decimal_base :
-	 "'d"  |  "'D"   
 
-binary_base : 
-	 "'b"  |  "'B"  
-
-octal_base : 
-	 "'o"  |  "'O" 
-
-hex_base : 
-	"'h"  |  "'H"  
-
-hex_digits : 
-        /[xXzZ0-9a-fA-F][xXzZ0-9a-fA-F_]*/
-
-
-octal_digits : 
-        /[xXzZ0-7][xXzZ0-7_]*/
-
-binary_digits : 
-        /[xXzZ01][xXzZ01_]*/
-
-
-decimal_digits : 
-        /[0-9][0-9_]*/
 
 
 
@@ -2484,16 +2608,32 @@ concatenation :
 
 function_call : 
 	  function_identifier_parameter_list 
+	| test_command_line_argument_definition
 	| name_of_system_function_parameter_list
 
 function_identifier_parameter_list : 
         function_identifier 
-          '(' 
+	{
+	if (defined($verilog_functions{$item{function_identifier}}))
+		{ 
+		$return = 1; 
+		1;
+		}
+	else
+		{ 
+		$return = undef; 
+		undef;
+		}
+	}
+	'(' 
         expression_comma_expression
         ')'
 
 name_of_system_function_parameter_list :
         name_of_system_function
+	optional_system_function_parameter_list(?)
+
+optional_system_function_parameter_list : 
         '(' 
         expression_comma_expression
         ')'
@@ -2504,8 +2644,14 @@ name_of_system_function :
 	<skip:''>
 	identifier
 
+test_command_line_argument_definition :
+	'$test$plusargs'
+	'('
+	string_literal
+	')'
+
 string_literal : 
-        /"([^\n"])"/  
+        /"([^\n"]*)"/  
 	{ $1 }
 
 any_string_character : 
@@ -2523,11 +2669,15 @@ conditional_expression :
 #################################################################
 
 
+
 identifier :
         /[a-zA-Z][a-zA-Z_0-9]*/
+	# add the period '.' at the end to allow hierarchical names.
+	# if result contains a period, check that it is a valid hierarchy
+	# path to the resulting signal. at the very least,
+	# do not allow two periods to be adjacent.
 
-
-block_identifer : 
+block_identifier : 
 	identifier
 
 event_identifier : 
@@ -2540,10 +2690,10 @@ gate_instance_identifier :
 	identifier
 
 inout_port_identifier : 
-	identifier
+	identifier_bit_selection_or_bit_slice
 
 input_port_identifier : 
-	identifier
+	identifier_bit_selection_or_bit_slice
 
 memory_identifier : 
 	identifier
@@ -2556,20 +2706,18 @@ module_identifier :
 
 module_instance_identifier : 
 	identifier
-	| <error>
 
 net_identifier : 
 	identifier
 
 output_port_identifier : 
-	identifier
+	identifier_bit_selection_or_bit_slice
 
 parameter_identifier : 
 	identifier
 
 port_identifier : 
 	identifier
-	| <error>
 
 real_identifier : 
 	identifier

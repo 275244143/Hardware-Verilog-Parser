@@ -1,9 +1,21 @@
 
+##################################################################
+# Copyright (C) 2000 Greg London   All Rights Reserved.
+# This program is free software; you can redistribute it and/or
+# modify it under the same terms as Perl itself.
+##################################################################
+
+
 require 5;
 use strict;
 
 
+##################################################################
 package Hardware::Verilog::StdLogic;
+##################################################################
+use vars qw ( $VERSION );
+$VERSION = '0.03';
+##################################################################
 
 use Data::Dumper;
 # print Dumper($reference);
@@ -19,21 +31,28 @@ sub new
 {
  my ($class, $string) = @_;
  $string = "1'b0" unless(defined($string));
+ $string =~ s/\s//g;
 
-#print "new StdLogic, value is $string \n";
+ #print "new StdLogic, value is $string \n";
 
- my $r_hash;
 
- my ($width, $value, $base);
+ my $numsize=undef;
+ my $value=undef;
+ my $base;
+
  if ($string =~ /'/)
 	{
 	#################################################
 	# it contains a base identifier
 	# such as 3'b001 or 'hf92  or 3'o7  or 8'd9
 	# split it apart and decode it.
-	# note that width is not required.
+	# note that numsize is not required.
 	#################################################
-	($width, $value) = split(/'/, $string);
+	($numsize, $value) = split(/'/, $string);
+	#print "split numsize is $numsize \n";
+
+
+	$numsize = undef unless (length($numsize) > 0);
 
 	$base = lc ( substr($value, 0, 1) );
 	$value = substr($value, 1, length($value)-1);
@@ -55,7 +74,7 @@ sub new
 	}
 
 
- if(defined($width) and length($width) and ($width > 0))
+ if (defined($numsize))
 	{
 	#################################################
 	# binary numbers must be exact widths.
@@ -67,32 +86,43 @@ sub new
 	my $msb_string = $1;
 	my $msb_length = length($msb_string);
 	my $total_bits = length($value);
-	if ($msb_length > $width)
+	if ($msb_length > $numsize)
 		{
 		$class->Error( 
-		"specified length is too short for given value. Truncating." );
-		$value = substr($value, $total_bits-$width, $width);
+		"specified length is too short for given value. Truncating ($string)." );
+		$value = substr($value, $total_bits-$numsize, $numsize);
 		}
 
-	elsif ($width > $total_bits)
+	elsif ($numsize > $total_bits)
 		{ 
-		$value = '0'x($width - $total_bits) . $value; 
+		$value = '0'x($numsize - $total_bits) . $value; 
 		}
-	elsif ($total_bits > $width)   
+	elsif ($total_bits > $numsize)   
 		{
 		# do one last trimming for cases when
 		# the value is 3'h2, 
 		# since hexstrtobinstr will return a 4 bit value
-		$value =~ /(.{$width})$/;
+		$value =~ /(.{$numsize})$/;
 		$value = $1;
 		}
 
-	$r_hash = { 'width'=>$width, 'binary'=>$value };
 	}
+
  else
 	{
-	$r_hash = { 'width'=>'u', 'binary'=>$value };
+	$numsize='u';
+	my $char;
+	my $i;
+	for($i=0; $i<length($value); $i++)
+		{
+		$char = substr($value,$i,1);
+		#print "i=$i  char = $char \n";
+		last if ($char eq '1');
+		}
+	$numsize = length($value) - $i;
 	}
+
+ my $r_hash = { 'width'=>$numsize, 'binary'=>$value };
 
  bless $r_hash, $class;
  return $r_hash;
@@ -736,6 +766,7 @@ my %unary_operator_hash_table = (
 
 sub unary_operator
 {
+#print "CALLING unary_operator\n";
  my ($obj, $unary_operator) = @_ ;
  my $call = $unary_operator_hash_table{$unary_operator};
  my $ret = &$call($obj);
@@ -798,6 +829,7 @@ sub binary_arithmetic_divide
 
 sub binary_arithmetic_add
 {
+#print "CALLING binary_arithmetic_add\n";
  my ($obj_left, $obj_right)=@_;
  my $ret = ref($obj_left)->new;
  my $left_width  = $obj_left->width;
@@ -819,17 +851,20 @@ sub binary_arithmetic_add
   my $num = ( $obj_left->numeric + $obj_right->numeric );
   my $str = sprintf("%x", $num);
   my $bin = $ret->HexstrToBinstr($str);
-  my $offset = length($bin) - $ret->width;
-  $ret->binary(substr($bin,$offset,$ret->width)); 
+  $ret->binary($bin); 
+  $ret->trim;
   }
  return $ret;
 }
 
 sub binary_arithmetic_subtract
 {
+#print "CALLING binary_arithmetic_subtract\n";
  my ($obj_left, $obj_right)=@_;
- my $neg_right = $obj_right->unary_minus;
- my $ret = $obj_left->binary_arithmetic_add($neg_right);
+ my ($ret,$prep_left,$prep_right) = $obj_left->binary_prep($obj_right);
+
+ my $neg_right = $prep_right->unary_minus;
+ $ret = $prep_left->binary_arithmetic_add($neg_right);
  return $ret;
 }
 
@@ -1203,15 +1238,16 @@ sub binary_prep
  #########################################################
  if ( ($leftwidth eq 'u') and ($rightwidth eq 'u') )
 	{
-	# keep widths undefined, but make sure lengths match.
-	$new_obj->width('u');
+	# make lengths match the longest binary string
 	if($leftlength > $rightlength)
 		{
 		$right->binary('0'x($leftlength-$rightlength) . $rightbin);
+		$new_obj->width($leftlength);
 		}
 	else
 		{
 		$left->binary('0'x($rightlength-$leftlength) . $leftbin);
+		$new_obj->width($rightlength);
 		}
 	}
 
@@ -1220,22 +1256,10 @@ sub binary_prep
  #########################################################
  elsif ($leftwidth eq 'u')
 	{
-	# if undefined width (left) is bigger than the defined width (right),
-	# then need to set the defined width to undefined and expand it.
-	if($leftlength > $rightlength)
-		{
-		$right->binary('0'x($leftlength-$rightlength) . $rightbin);
-		$right->width('u');
-		$new_obj->width('u');
-		}
-	# else the defined width (right) is bigger.
 	# expand the undefined width (left) to match it.
-	else
-		{
-		$left->binary('0'x($rightlength-$leftlength) . $leftbin);
-		$left->width($rightwidth);
-		$new_obj->width($rightwidth);
-		}
+	$left->binary('0'x($rightlength-$leftlength) . $leftbin);
+	$left->width($rightwidth);
+	$new_obj->width($rightwidth);
 	}
 
  #########################################################
@@ -1243,22 +1267,10 @@ sub binary_prep
  #########################################################
  elsif ($rightwidth eq 'u')
 	{
-	# if undefined width (right) is bigger than the defined width (left),
-	# then need to set the defined width to undefined and expand it.
-	if($rightlength > $leftlength)
-		{
-		$left->binary('0'x($rightlength-$leftlength) . $leftbin);
-		$left->width('u');
-		$new_obj->width('u');
-		}
-	# else the defined width (left) is bigger.
 	# expand the undefined width (right) to match it.
-	else
-		{
-		$right->binary('0'x($leftlength-$rightlength) . $rightbin);
-		$right->width($leftwidth);
-		$new_obj->width($leftwidth);
-		}
+	$right->binary('0'x($leftlength-$rightlength) . $rightbin);
+	$right->width($leftwidth);
+	$new_obj->width($leftwidth);
 	}
 
  #########################################################
@@ -1335,6 +1347,7 @@ my %binary_operator_hash_table = (
 
 sub binary_operator
 {
+#print "CALLING binary_operator \n";
  my ($left, $binary_operator, $right) = @_ ;
  my $call = $binary_operator_hash_table{$binary_operator};
  my $ret = &$call($left, $right);

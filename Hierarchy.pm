@@ -11,7 +11,7 @@ use Hardware::Verilog::Parser;
 @ISA = ( 'Hardware::Verilog::Parser' );
 ##################################################################
 use vars qw ( $VERSION );
-$VERSION = '0.02';
+$VERSION = '0.03';
 ##################################################################
 
 ##################################################################
@@ -33,8 +33,8 @@ sub new
 #module_declaration_identifier :
 #	identifier
 #		{ print "MODULENAME $item{identifier} \n"; }
-
- ));
+#
+# ));
 
 
  # bless it as a vhdl_hierarchy object
