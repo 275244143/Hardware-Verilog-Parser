@@ -14,3 +14,6 @@ Revision history for Perl extension Hardware::Verilog::Parser.
 	parses module instantiations
 	added Hierarchy.pm module
 	added hierarchy.pl script
+
+0.04  8 Feb 2000
+	made some fixes to expression rules

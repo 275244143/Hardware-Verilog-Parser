@@ -11,7 +11,7 @@ use Hardware::Verilog::Parser;
 @ISA = ( 'Hardware::Verilog::Parser' );
 ##################################################################
 use vars qw ( $VERSION );
-$VERSION = '0.01';
+$VERSION = '0.02';
 ##################################################################
 
 ##################################################################
@@ -29,6 +29,10 @@ name_of_instance  :
         range(?)
 
 		{ print "INSTANCENAME $item{module_instance_identifier} \n"; }
+
+module_declaration_identifier :
+	identifier
+		{ print "MODULENAME $item{identifier} \n"; }
  ));
 
 

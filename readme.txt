@@ -1,36 +1,63 @@
-This module is an attempt to make it easy for hardware engineers
-to create scripts that parse Verilog files intelligently.
+##################################################################
+# Copyright (C) 2000 Greg London   All Rights Reserved.
+# This program is free software; you can redistribute it and/or
+# modify it under the same terms as Perl itself.
+##################################################################
+
+Hardware::Verilog::Parse.pm is currently in "beta" status
 
 The Hardware::Verilog::Parser.pm file contains a Verilog grammar.
 This grammar is used by Parse::RecDescent to parse any
-Verilog design file.
+Verilog design file.You will need the latest version of 
+Parse::RecDescent to use this grammar.
 
-verilog.pl is a script which uses this module to do the
-actual parsing.  a test Verilog file is included,
-called test1.v
+verilog.pl is a script which uses this module to do the actual parsing.  
+a test Verilog file is included called test1.v
 
 to parse the file, type:
 
 verilog.pl test1.v
 
 The verilog.pl script doesn't do anything except parse the file.
+There is another module called hierarchy.pm which spits out
+the name of all instantiated components. There is a script,
+called hierarchy.pl, that uses this module. To run this script,
+type:
 
+hierarchy.pl test1.v
 
+this should print out:
+INSTANCENAME INSTANCE_U1 
+INSTANCENAME INSTANCE_U2 
+INSTANCENAME INSTANCE_U3 
 
 PLEASE NOTE: the script takes some time to simply load the grammar.
 the it takes about a minute (yes, 60 seconds) to run the 
-verilog.pl test1.v command shown above when run on an Ultra 60.
+hierarchy.pl test1.vhd command shown above when run on an Ultra 60.
 your performance may vary.
 
 the Parse::RecDescent has some features which will eventually 
 allow me to speed up this execution time. I'll get to that
 when the grammar is ironed out.
 
+status of grammar: Beta
 
-The module is currently in "debug" status.
-There are a number of problems in the grammar.
-I'm putting the file on CPAN to get some help 
-finding all the bugs.
+once the grammar is in a released state, 
+then I'll concentrate on tools that use the grammar. 
+
+possible tool applications include: 
+1) automatic build scripts, 
+2) automatic synthesis scripts, 
+3) hierarchical browswers,
+4) lint type checking with a hardware slant,
+   "hey buddy, you've got combinatorial logic driving a module output port"
+   "you've got combinatorial paths that cross multiple hierarchy boundaries."
+   "did you ever hear of clocking all your output ports"
+5) a script that can go through a netlist,
+	find all the signals,
+	perform regular-expression renaming on the signals,
+	and save the results as a new netlist.
+
 
 If you have any corrections or questions,
 please send them to me at

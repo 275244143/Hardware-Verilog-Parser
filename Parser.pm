@@ -11,7 +11,7 @@ use Parse::RecDescent;
 @ISA = ( 'Parse::RecDescent' );
 ##################################################################
 use vars qw ( $VERSION  @ISA);
-$VERSION = '0.04';
+$VERSION = '0.05';
 ##################################################################
 
 ##################################################################
@@ -112,9 +112,9 @@ design_unit :
         module_declaration | udp_declaration
 	| <error>
 
-module_declaration  : 
+module_declaration : 
         module_keyword
-        module_identifier
+        module_declaration_identifier
         list_of_ports(?)
         ';'
         module_item(s?)
@@ -124,13 +124,13 @@ module_declaration  :
 module_keyword : 
         'module'  |  'macromodule'
 
-list_of_ports  : 
+list_of_ports : 
         '(' 
         one_or_more_ports_separated_by_commas 
         ')'
 	| <error>
 
-port  : 
+port : 
         optional_port_expression |
         dot_port_identifier_and_port_expression
 
@@ -145,27 +145,16 @@ dot_port_identifier_and_port_expression :
 optional_port_expression :
         port_expression(?)
 
-port_expression  : 
+port_expression : 
         one_or_more_port_references_separated_by_commas
 
-port_reference  : 
+port_reference : 
         port_identifier
-        port_bit_or_slice(?)
+        port_bit_selection_or_bit_slice(?)
 
-port_bit_or_slice :
-        bit_or_slice
+port_bit_selection_or_bit_slice :
+        bit_selection_or_bit_slice(?)
 
-bit_or_slice :
-	'[' 
-	bit_or_range
-	']'
-
-bit_or_range :
-	  single_bit
-	| range
-
-single_bit :
-	expression
 
 module_item : 
 	module_item_declaration | 
@@ -205,7 +194,7 @@ parameter_override :
 ###################################################################
 
 
-parameter_declaration  :  
+parameter_declaration :  
         'parameter' 
         one_or_more_parameter_assignments_serparated_by_commas
         ';'
@@ -239,28 +228,28 @@ list_of_port_identifiers :
 
 
 
-reg_declaration  :  
+reg_declaration :  
         'reg'
         range(?) 
         one_or_more_register_names_separated_by_commas
         ';'
 
-time_declaration  :  
+time_declaration :  
         'time'
         one_or_more_register_names_separated_by_commas
         ';'
 
-integer_declaration  :  
+integer_declaration :  
         'time'
         one_or_more_register_names_separated_by_commas
         ';'
 
-real_declaration  :  
+real_declaration :  
         'real'
         one_or_more_real_identifiers_separated_by_commas
         ';'
 
-realtime_declaration  :  
+realtime_declaration :  
         'realtime'
         one_or_more_real_identifiers_separated_by_commas
         ';'
@@ -271,11 +260,11 @@ event_declaration :
         ';'
 
 
-register_name  : 
+register_name : 
         register_identifier | 
         memory_identifier     range(?)
 
-range  :
+range :
         '[' 
         msb_constant_expression 
         ':'  
@@ -289,7 +278,7 @@ msb_constant_expression :
 lsb_constant_expression :
 	constant_expression
 
-net_declaration  : 
+net_declaration : 
         net_type_vectored_scalared_range_delay3_list_of_net_identifiers | 
         trireg_vectored_scalared_charge_strength_range_delay3_list_of_net |
         net_type_vectored_scalared_drive_strength_range_delay3_list_of_net_decl
@@ -336,7 +325,7 @@ net_type :
         'trior'
 
 
-drive_strength  : 
+drive_strength : 
         '('
         (
         strength0_comma_strength1 |
@@ -375,11 +364,11 @@ strength0 :
 strength1 : 
 	'supply1'  |  'strong1'  |  'pull1'  |  'weak1' 
 
-charge_strength  :  
+charge_strength :  
 	'small'    |  'medium'      |  'large'  
 
 
-delay3  :  
+delay3 :  
         '#'
         '('
         ( one_delay_value |
@@ -387,14 +376,14 @@ delay3  :
         three_delay_values )
         ')'
 
-delay2  :  
+delay2 :  
         '#'
         '('
         ( one_delay_value |
           two_delay_values )
         ')'
 
-delay1  :  
+delay1 :  
         '#'
         '('
         one_delay_value 
@@ -409,7 +398,7 @@ two_delay_values :
 three_delay_values :
         delay_value ',' delay_value ',' delay_value
         
-delay_value  :  
+delay_value :  
 	unsigned_number  |  
           parameter_identifier  | 
           constant_mintypmax_expression
@@ -420,7 +409,7 @@ net_decl_assignment :
         '='
         expression
 
-function_declaration  : 
+function_declaration : 
         'function'
         range_or_type(?)
         function_identifier 
@@ -436,7 +425,7 @@ function_item_declaration :
         input_declaration |
         block_item_declaration
 
-task_declaration  : 
+task_declaration : 
         'task'
         task_identifier
         ';'
@@ -466,7 +455,7 @@ block_item_declaration :
 ###################################################################
 
 
-gate_instantiation  : 
+gate_instantiation : 
         n_input_gatetype_drive_strength_delay2_n_input_gate_instance | 
         n_output_gatetype_drive_strength_delay2_n_output_gate_instance | 
         enable_gatetype_drive_strength_delay3_enable_gate_instance | 
@@ -534,21 +523,21 @@ pulldown_pulldown_strength_pull_gate_instance :
         one_or_more_pull_gate_instance_seperated_by_commas
         ';'
 
-n_input_gate_instance  : 
+n_input_gate_instance : 
         name_of_gate_instance(?) 
         '('
          output_terminal ','
          one_or_more_input_terminals_separated_by_commas ','
         ')'
 
-n_output_gate_instance  : 
+n_output_gate_instance : 
         name_of_gate_instance(?) 
         '('
         one_or_more_output_terminals_separated_by_commas ','
         input_terminal
         ')'
 
-enable_gate_instance  : 
+enable_gate_instance : 
         name_of_gate_instance(?) 
         '('
         output_terminal ','
@@ -557,7 +546,7 @@ enable_gate_instance  :
         ')'
 
 
-mos_switch_instance  : 
+mos_switch_instance : 
         name_of_gate_instance(?) 
         '('
          output_terminal ','
@@ -566,14 +555,14 @@ mos_switch_instance  :
         ')'
 
 
-pass_switch_instance  : 
+pass_switch_instance : 
         name_of_gate_instance(?) 
         '('
          inout_terminal ','
          inout_terminal 
         ')'
 
-pass_enable_switch_instance  : 
+pass_enable_switch_instance : 
         name_of_gate_instance(?) 
         '('
          inout_terminal ','
@@ -581,7 +570,7 @@ pass_enable_switch_instance  :
          enable_terminal
         ')'
 
-cmos_switch_instance  : 
+cmos_switch_instance : 
         name_of_gate_instance(?) 
         '('
          output_terminal   ','
@@ -590,19 +579,19 @@ cmos_switch_instance  :
          pcontrol_terminal
         ')'
 
-pull_gate_instance  : 
+pull_gate_instance : 
         name_of_gate_instance(?) 
         '('
          output_terminal 
         ')'
 
-name_of_gate_instance  :  
+name_of_gate_instance :  
         gate_instance_identifier
         range(?)
 
 
 
-pullup_strength  : 
+pullup_strength : 
         '('
         (
         strength0_comma_strength1 |
@@ -612,7 +601,7 @@ pullup_strength  :
         ')'
 
 
-pulldown_strength  : 
+pulldown_strength : 
         '('
         (
         strength0_comma_strength1 |
@@ -622,10 +611,10 @@ pulldown_strength  :
         ')'
 
 
-input_terminal  :  
+input_terminal :  
         scalar_expression 
 
-enable_terminal  :   
+enable_terminal :   
         scalar_expression 
 
 ncontrol_terminal :  
@@ -634,25 +623,25 @@ ncontrol_terminal :
 pcontrol_terminal :  
         scalar_expression 
 
-output_terminal  :        
+output_terminal :        
         terminal_identifier  constant_expression(?)
 
 inout_terminal : 
         terminal_identifier  constant_expression(?)
 
-n_input_gatetype  :  
+n_input_gatetype :  
 	'and'  |  'nand'  |  'or'  |  'nor'  |  'xor'  |  'xnor'  
 
-n_output_gatetype  :  
+n_output_gatetype :  
 	'buf'  |  'not' 
 
-enable_gatetype  :  
+enable_gatetype :  
 	'bufifo'  |  'bufdl'  |  'notifo'  |  'notifl'  
 
 mos_switchtype :  
 	'nmos'  |  'pmos'  |  'rnmos'  |  'rpmos'    
 
-pass_switchtype  :  
+pass_switchtype :  
 	'tran'  |  'rtran'   
 
 pass_en_switchtype :
@@ -689,7 +678,7 @@ module_instance :
 	| <error>
 
 
-name_of_instance  : 
+name_of_instance : 
          module_instance_identifier
         range(?)
 	| <error>
@@ -699,7 +688,7 @@ list_of_module_connections :
 	| one_or_more_ordered_port_connections_separated_by_commas 
 	| <error>
 
-ordered_port_connection  :  
+ordered_port_connection :  
         expression(?)
 	| <error>
 
@@ -715,7 +704,7 @@ named_port_connection :
 # UDP declaration and instantiation
 ##############################################################
 
-udp_declaration  : 
+udp_declaration : 
         'primitive'
         udp_identifier 
         '(' udp_port_list ')' ';'
@@ -723,7 +712,7 @@ udp_declaration  :
         udp_body
         'endprimitive'
 
-udp_port_list  :  
+udp_port_list :  
         output_port_identifier ','
         one_or_more_input_port_identifier_separated_by_commas
 
@@ -733,11 +722,11 @@ udp_port_declaration :
 	| reg_declaration
         
 
-udp_body  : 
+udp_body : 
          combinational_body  |  sequential_body
 
 
-combinational_body  : 
+combinational_body : 
         'table' 
         combinational_entry(s) 
         'endtable'
@@ -751,23 +740,23 @@ sequential_body :
         sequential_entry(s)
         'endtable'
 
-udp_initial_statement  :  
+udp_initial_statement :  
         'initial' 
         udp_output_port_identifier 
         '=' 
         init_val
         ';'
 
-init_val  : 
+init_val : 
           "1'b0" | "1'b1" | "1'bx" | "1'bX " | 
           "1'B0" | "1'B1" | "1'Bx" | "1'BX " |
           '1' | '0' 
 
-sequential_entry  :  
+sequential_entry :  
         seq_input_list ':' current_state ':' next_state
 
 
-seq_input_list  :  
+seq_input_list :  
         level_input_list  |  edge_input_list
 
 level_input_list :
@@ -784,16 +773,16 @@ edge_indicator :
 level_symbol_level_symbol_in_paran :
         '(' level_symbol level_symbol ')'
 
-current_state  : 
+current_state : 
         level_symbol
 
-next_state  : 
+next_state : 
         output_symbol | '-'
 
 output_symbol : 
         /[01xX]/
 
-level_symbol  :
+level_symbol :
         /[01xXbB?]/ 
 
 edge_symbol :
@@ -832,7 +821,7 @@ output_port_connection :
 # behavioural statements
 #####################################################################
 
-continuous_assignment  : 
+continuous_assignment : 
         'assign'
         drive_strength(?)
         delay3(?)
@@ -842,22 +831,22 @@ continuous_assignment  :
 net_assignment : 
         net_lvalue '=' expression
 
-initial_construct  : 
+initial_construct : 
         'initial' statement
 
-always_construct  : 
+always_construct : 
         'always' statement
 
 statement :
 	  procedural_timing_control_statement 
 	| procedural_continuous_assignment_with_semicolon 
+	| seq_block 
 	| conditional_statement 
 	| case_statement 
 	| loop_statement 
 	| wait_statement 
 	| disable_statement 
 	| event_trigger 
-	| seq_block 
 	| par_block 
 	| task_enable 
 	| system_task_enable
@@ -875,7 +864,7 @@ non_blocking_assignment_with_semicolon :
 procedural_continuous_assignment_with_semicolon :
 	procedural_continuous_assignment ';'
 
-statement_or_null  : 
+statement_or_null : 
         statement | ';'
 
 
@@ -920,7 +909,7 @@ release_reg_lvalue :
 release_net_lvalue :
         'release' net_lvalue ';'
 
-procedural_timing_control_statement  : 
+procedural_timing_control_statement : 
         delay_or_event_control 
         statement_or_null
 	| <error>
@@ -944,7 +933,7 @@ delay_control :
 delay_value_or_mintypmax_expression_in_paren :
 	delay_value | mintypmax_expression_in_paren
 
-mintypmax_expression_in_paren  : 
+mintypmax_expression_in_paren : 
 	 '(' mintypmax_expression ')'
 
 event_control :
@@ -977,7 +966,7 @@ negedge_expression :
         expression
 
 
-conditional_statement  : 
+conditional_statement : 
         'if' '(' expression ')'
         statement_or_null 
         else_statement_or_null(?)
@@ -987,7 +976,7 @@ else_statement_or_null :
         statement_or_null
 
 
-case_statement  : 
+case_statement : 
 	  case_endcase  
 	| casez_endcase  
 	| casex_endcase
@@ -1004,7 +993,7 @@ casex_endcase :
 expression_case_item_list :
         '(' expression ')' case_item(s)
 
-case_item  : 
+case_item : 
 	  expression_list_statement_or_null 
 	| default_statement_or_null 
 
@@ -1019,7 +1008,7 @@ default_statement_or_null :
         statement_or_null
 
 
-loop_statement  : 
+loop_statement : 
 	  forever_statement 
 	| repeat_expression_statement  
 	| while_expression_statement  
@@ -1050,28 +1039,28 @@ for_reg_assignment_expression_reg_assignment_statement :
 reg_assignment : 
         reg_lvalue '=' expression 
 
-wait_statement  : 
+wait_statement : 
         'wait' 
         '(' 
         expression 
         ')' 
         statement_or_null
 
-event_trigger  : 
+event_trigger : 
         '->' event_identifier ';'
 
-disable_statement  : 
+disable_statement : 
         'disable' 
         ( task_identifier | block_identifer ) 
         ';'                
 
-seq_block  : 
+seq_block : 
         'begin' 
         block_identifier_block_item_declaration(?)      
         statement(s?)
         'end'
 
-par_block  : 
+par_block : 
         'fork' 
         block_identifier_block_item_declaration(?)      
         statement(s?)
@@ -1081,7 +1070,7 @@ block_identifier_block_item_declaration :
 	':'
 	block_item_declaration(s?)
 
-task_enable  : 
+task_enable : 
         task_identifier
         expression_list_in_paren(?)
         ';'
@@ -1208,11 +1197,11 @@ list_of_path_outputs :
 
 specify_input_terminal_descriptor : 
         input_identifier 
-        bit_or_slice(?)
+       	bit_selection_or_bit_slice(?)
 
 specify_output_terminal_descriptor : 
         output_identifier 
-        bit_or_slice(?)
+        bit_selection_or_bit_slice(?)
 
 input_identifier : 
 	  input_port_identifier 
@@ -1542,49 +1531,61 @@ notify_register :
 # expressions
 ##############################################################
 
+bit_selection_or_bit_slice :
+	'['
+	expression
+	colon_expression(?)
+	']'
+
+colon_expression :
+	':'
+	expression
+
 
 net_lvalue : 
-	  net_identifier  
-	| net_identifier_with_bit_select 
-	| net_identifier_with_slice_select  
-	| net_concatenation
-
-net_identifier_with_bit_select :
-        net_identifier '[' expression ']'
-
-net_identifier_with_slice_select :
-        net_identifier range
+	  net_concatenation
+	| net_identifier_with_bit_selection
 
 net_concatenation : 
         '{' one_or_more_expressions_separated_by_commas '}'
 
+net_identifier_with_bit_selection :
+        net_identifier
+	bit_selection_or_bit_slice(?)
+
+
 reg_lvalue :
-	  register_identifier   
-	| reg_identifier_with_bit_select  
-	| reg_identifier_with_slice_select   
-	| reg_concatenation
-	| <error>
+	  reg_concatenation
+	| reg_identifier_with_bit_selection
 
-reg_identifier_with_bit_select :
-        register_identifier '[' expression ']'
-
-reg_identifier_with_slice_select :
-        register_identifier range
 
 reg_concatenation : 
         '{' one_or_more_expressions_separated_by_commas '}'
 
+reg_identifier_with_bit_selection :
+        register_identifier
+	bit_selection_or_bit_slice(?)
+
 constant_expression : 
-	constant_bin_expr '?' constant_expression ':' constant_expression 
-	| constant_bin_expr
+	constant_bin_expr 
+	question_constant_expr_colon_constant_expr(?)
+
+question_constant_expr_colon_constant_expr :
+	 '?' 
+	constant_expression 
+	':' 
+	constant_expression 
 
 constant_bin_expr : 
-	constant_uni_expr binary_operator constant_bin_expr
-	| constant_uni_expr
+	constant_uni_expr 
+	binary_operator_constant_bin_expr(?)
+
+binary_operator_constant_bin_expr :
+	binary_operator
+	constant_bin_expr
 
 constant_uni_expr : 
-	unary_operator constant_primary 
-	| constant_primary
+	unary_operator(?) constant_primary 
 
 
 constant_primary : 
@@ -1616,9 +1617,14 @@ colon_expression_colon_expression :
         expression 
 
 expression : 
-	bin_expr '?' expression ':' expression 
-	| bin_expr
-	| <error>
+	bin_expr 
+	question_expr_colon_expr(?)
+
+question_expr_colon_expr :
+	 '?' 
+	expression 
+	':' 
+	expression 
 
 
 bin_expr : 
@@ -1670,13 +1676,13 @@ binary_operator :
 
 primary : 
 	  number 
-	| identifier_bit_or_slice 
+	| identifier_bit_selection_or_bit_slice 
 	| concatenation 
 	| function_call  
 	| mintypmax_expression_in_paren 
         
-identifier_bit_or_slice :
-        identifier bit_or_slice(?) 
+identifier_bit_selection_or_bit_slice :
+        identifier  bit_selection_or_bit_slice(?) 
 
 mintypmax_expression_in_paren :
         '(' mintypmax_expression ')'
@@ -1738,7 +1744,7 @@ hex_number :
 sign :
         '+' | '-'
 
-size  : 
+size : 
 	unsigned_number
 
 unsigned_number : 
@@ -1751,10 +1757,10 @@ decimal_base :
 binary_base : 
 	 "'b"  |  "'B"  
 
-octal_base  : 
+octal_base : 
 	 "'o"  |  "'O" 
 
-hex_base  : 
+hex_base : 
 	"'h"  |  "'H"  
 
 decimal_digit : 
@@ -1838,6 +1844,9 @@ input_port_identifier :
 memory_identifier : 
 	identifier
 
+module_declaration_identifier :
+	identifier
+
 module_identifier : 
 	identifier
 
@@ -1898,7 +1907,15 @@ one_or_more_cmos_switch_instance_separated_by_commas :
 	<leftop: cmos_switch_instance /(,)/ cmos_switch_instance>
 
 one_or_more_decimal_digits_possibly_separated_by_underscore : 
-	<leftop: decimal_digit /(_)/ decimal_digit>
+	decimal_digit 
+	underscore_decimal_digit(s?)
+
+underscore_decimal_digit :
+	underscore_character(?)
+	decimal_digit
+
+underscore_character :
+	'_'
 
 one_or_more_enable_gate_instance_separated_by_commas : 
 	<leftop: enable_gate_instance /(,)/ enable_gate_instance>
@@ -2140,6 +2157,86 @@ my $could_be_quote;
 
 }
 
+#########################################################################
+sub convert_defines_in_text
+#########################################################################
+{
+ my ($obj,$text)=@_;
+
+ return $text unless ($text=~/`define/);
+
+ my $filtered_text='';
+
+ my %define_hash;
+
+ my ( $string_prior_to_tick, $string_after_tick);
+
+my $temp_string;
+
+while(1)
+	{
+	unless ($text =~ /`/) 
+		{ 
+		$filtered_text .= $text ;
+		last;
+		}
+
+
+	( $string_prior_to_tick, $string_after_tick)
+		= split( '`' , $text, 2 );
+
+	$filtered_text .= $string_prior_to_tick;
+
+	# if new define
+	if ($string_after_tick =~ /^define/)
+		{
+		$string_after_tick =~ /^define\s+(.*)/;
+		my $temp_string = $1;
+		my ($key, $value) = split(/\s+/, $temp_string, 2);
+		$define_hash{$key}=$value;
+
+		#print "defining key=$key   value=$value \n";############
+
+		my $define_string = '^define\s+'.$temp_string;
+
+		$string_after_tick =~ s/$define_string//;
+		$text = $string_after_tick;
+		}
+
+	# else if `undef
+	elsif ($string_after_tick =~ /^undef/)
+		{
+		$string_after_tick =~ /^undef\s+(\w+)/;
+		my $key = $1;
+		my $undef_string = '^undef\s+'.$key;
+		$string_after_tick =~ s/$undef_string//;
+
+		$define_hash{$key}=undef;
+		$text = $string_after_tick;
+
+		#print "undefining key=$key \n";#########
+		}
+
+	# else must be a defined constant, replace `NAME with $value
+	else
+		{
+		$string_after_tick =~ /^(\w+)/;
+		my $key = $1;
+		unless(	defined($define_hash{$key}) )
+			{die "undefined macro `$key\n";}
+		$string_after_tick =~ s/$key//;
+		$value = $define_hash{$key};
+		
+		$filtered_text .= $value;
+
+		$text = $string_after_tick;
+		#print "replacing key=$key   value=$value\n";#######
+
+		}
+	}
+
+ return $filtered_text;
+}
 
 #########################################################################
 sub Filename
@@ -2152,7 +2249,7 @@ sub Filename
 	my $filename = shift;
  	my $text = $obj->filename_to_text($filename);
  	$text = $obj->decomment_given_text($text);
-
+ 	$text = $obj->convert_defines_in_text($text);
 
  	$obj->design_file($text);
 	}
@@ -2161,6 +2258,9 @@ sub Filename
 #########################################################################
 sub filename_to_text
 #########################################################################
+#
+# need to handle `includes here
+#
 {
  my ($obj,$filename)=@_;
  open (FILE, $filename) or die "Cannot open $filename for read\n";
@@ -2207,18 +2307,23 @@ This module defines the complete grammar needed to parse any Verilog code.
 By overloading this grammar, it is possible to easily create perl scripts
 which run through Verilog code and perform specific functions.
 
-This module is currently in PRE-RELEASE state, and subject to
-change without notice. Once the grammar is ironed out, I hope
-to declare it relatively stable.
+For example, a Hierarchy.pm uses Hardware::Verilog::Parser to overload the
+grammar rule for module instantiations. This single modification
+will print out all instance names that occur in the file being parsed.
+This might be useful for creating an automatic build script, or a graphical
+hierarchical browser of a Verilog design.
+
+This module is currently in Beta release. All code is subject to change.
+Bug reports are welcome.
 
 =head1 AUTHOR
-
-Greg London  greg42@bellatlantic.net
 
 Copyright (C) 2000 Greg London   All Rights Reserved.
 
 This program is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself.
+
+email contact: greg42@bellatlantic.net
 
 =head1 SEE ALSO
 
