@@ -46,7 +46,7 @@ design_unit :
         module_declaration | udp_declaration
 
 module_declaration : 
-        module_keyword 
+        ( 'module'  |  'macromodule' )
 	<commit>
 
 	{
@@ -173,24 +173,18 @@ module_declaration :
 	}
 	| <error?> <reject>
 
-module_keyword : 
-        'module'  |  'macromodule'
-
 list_of_ports : 
         '(' 
-        port_comma_port 
-        ')'
-
-port_comma_port :
 	port
 	comma_port(s?)
+        ')'
 
 comma_port :
 	','
 	port
 
 port : 
-        optional_port_expression |
+        port_expression(?) |
         dot_port_identifier_and_port_expression
 
 dot_port_identifier_and_port_expression :
@@ -200,14 +194,7 @@ dot_port_identifier_and_port_expression :
         port_expression(?)
         ')'
         
-
-optional_port_expression :
-        port_expression(?)
-
 port_expression : 
-        port_reference_comma_port_reference
-
-port_reference_comma_port_reference :
 	port_reference
 	comma_port_reference(s?)
 
@@ -216,48 +203,33 @@ comma_port_reference :
 	port_reference
 
 port_reference : 
-        declare_port_identifier
-        port_bit_selection_or_bit_slice(?)
-
-declare_port_identifier :
 	port_identifier
+        port_bit_selection_or_bit_slice(?)
 	{ 
-	if(exists($verilog_port{$item{port_identifier}}))
-		{
-		$junk[0] = $item{port_identifier};
-		$return = undef;
-		undef;
-		}
-	else
-		{
-		$verilog_port{$item{port_identifier}} = 1;
-		1; 
-		}
+	$verilog_port{$item{port_identifier}} = 1;
 	}
-	| <error: redeclaring port "$junk[0]">
-
 
 port_bit_selection_or_bit_slice :
         bit_selection_or_bit_slice(?)
 
 
 module_item : 
-	  continuous_assignment  
-	| always_construct
-	| initial_construct  
-	| specify_block  
+	  'assign' continuous_assignment  
+	| 'always' always_construct
+	| 'initial' initial_construct  
+	| 'specify' specify_block  
+	| 'defparam' parameter_override  
 	| gate_instantiation  
 	| udp_instantiation  
-	| parameter_override  
 	| module_item_declaration  
 	| module_instantiation  
 
 module_item_declaration :
-          input_declaration  
+          reg_declaration  
+        | net_declaration  
+        | input_declaration  
         | output_declaration  
         | inout_declaration  
-        | net_declaration  
-        | reg_declaration  
         | parameter_declaration  
         | integer_declaration 
         | real_declaration  
@@ -268,11 +240,10 @@ module_item_declaration :
         | function_declaration
 
 parameter_override :
-        'defparam'
-	<commit>
         parameter_assignment_comma_parameter_assignment
         ';'
-	| <error?> <reject>
+	| <error>
+
 parameter_assignment_comma_parameter_assignment :
 	parameter_assignment
 	comma_parameter_assignment(s?)
@@ -1148,6 +1119,7 @@ comma_ordered_port_connection :
 	$return = $item{ordered_port_connection};
 	}
 	| <error?> <reject>
+
 named_port_connection_comma_named_port_connection :
 	named_port_connection
 	comma_named_port_connection(s?)
@@ -1345,13 +1317,11 @@ output_port_connection :
 #####################################################################
 
 continuous_assignment : 
-        'assign'				
-	<commit>
         drive_strength(?)			
         delay3(?)				
         net_assignment_comma_net_assignment	
         ';'
-	| <error?> <reject>
+	| <error>
 
 net_assignment_comma_net_assignment :
 	net_assignment
@@ -1367,16 +1337,12 @@ net_assignment :
         net_lvalue '=' expression
 
 initial_construct : 
-        'initial'
-	<commit>
 	statement
-	| <error?> <reject>
+	| <error>
 
 always_construct : 
-        'always' 
-	<commit>
 	statement
-	| <error?> <reject>
+	| <error>
 
 statement :
 	  procedural_timing_control_statement 
@@ -1700,11 +1666,9 @@ system_task_name :
 ##########################################################################
 
 specify_block :
-        'specify'
-	<commit>
         specify_item(s?)
         'endspecify'
-	| <error?> <reject>
+	| <error>
 
 specify_item :
 	  specparam_declaration   
@@ -2437,12 +2401,21 @@ colon_expression_colon_expression :
         ':'
         expression 
 
-expression : 
-	  string_literal 
-	| bin_expr_question_expr_colon_expr
+##################################################################
+##################################################################
 
-bin_expr_question_expr_colon_expr :
-	bin_expr 
+expression :
+	  trinary_expression
+	| expression_in_parens
+
+expression_in_parens :
+	'(' expression ')'
+	{
+	$return = $item{expression};
+	}
+
+trinary_expression : 
+	binary_series 
 	question_expr_colon_expr(?)
 
 question_expr_colon_expr :
@@ -2451,16 +2424,24 @@ question_expr_colon_expr :
 	':' 
 	expression 
 
+binary_series :  
+	                unary_expr_or_parenthetical_binary_series
+	binary_operator_unary_expr_or_parenthetical_binary_series(s?)
 
-bin_expr : 
-	uni_expr binary_operator_bin_expr(?)
-
-binary_operator_bin_expr :
+binary_operator_unary_expr_or_parenthetical_binary_series :
 	binary_operator
-	bin_expr
+	unary_expr_or_parenthetical_binary_series
+
+unary_expr_or_parenthetical_binary_series :
+	  uni_expr
+	| parenthetical_binary_series
+
+parenthetical_binary_series : 
+	'(' binary_series ')'
 
 uni_expr : 
-	optional_unary_operator primary 
+	optional_unary_operator 
+	primary 
 
 optional_unary_operator : 
 	  '~|' 
@@ -2503,11 +2484,13 @@ binary_operator :
 primary : 
 	  replication
 	| number 
+	| return_parameter_value	 
 	| function_call  
 	| identifier_bit_selection_or_bit_slice 
 	| concatenation 
 	| mintypmax_expression_in_paren 
- 
+	| string_literal
+
 replication :
 	number
 	concatenation
@@ -2651,8 +2634,10 @@ test_command_line_argument_definition :
 	')'
 
 string_literal : 
-        /"([^\n"]*)"/  
-	{ $1 }
+        /("[^\n"]*")/  
+	{ 
+	$return = Hardware::Verilog::StdLogic->new($1);
+	}
 
 any_string_character : 
 	/[^\n]/
@@ -2671,7 +2656,7 @@ conditional_expression :
 
 
 identifier :
-        /[a-zA-Z][a-zA-Z_0-9]*/
+        /[a-zA-Z][a-zA-Z_0-9\.]*/
 	# add the period '.' at the end to allow hierarchical names.
 	# if result contains a period, check that it is a valid hierarchy
 	# path to the resulting signal. at the very least,

@@ -53,4 +53,8 @@ Revision history for Perl extension Hardware::Verilog::Parser.
 	fixed a number of StdLogic.pm bugs to perform math correctly.
 
 
-
+0.12	7 Apr 2000
+	minor patch.
+	readme file incorrectly referred to non-existent verilog.pl file.
+	parser.pl script now also report performance information for
+	benchmarking. average is about 20 lines of verilog a second.

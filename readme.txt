@@ -8,15 +8,17 @@ Hardware::Verilog::Parse.pm is currently in "beta" status
 
 The Hardware::Verilog::Parser.pm file contains a Verilog grammar.
 This grammar is used by Parse::RecDescent to parse any
-Verilog design file.You will need the latest version of 
-Parse::RecDescent to use this grammar.
+Verilog design file.  The parser was developed with version
+1.77 of Parse::RecDescent.
 
-verilog.pl is a script which uses this module to do the actual parsing.  
+parser.pl is a script which uses this module to do the actual parsing.  
 a test Verilog file is included called test1.v
 
 to parse the file, type:
 
-verilog.pl test1.v
+parser.pl test1.v
+
+(or "parser.pl test1.v test2.v test3.v")
 
 This should print out a report on test1.v that looks something like this:
 
@@ -52,14 +54,58 @@ contained the following regs:
 
 
 contained the following instances:
+	c is instance of clkblk 
+	c1 is instance of clkbufrd 
+	u2 is instance of core 
+	u3 is instance of and08 
+	u4 is instance of or02 
+
+contained the following function declarations :
 
 
+contained the following parameters :
+
+
+line count is 677
+timit result is 58 wallclock secs (58.05 usr +  0.06 sys = 58.11 CPU)
+using 58.05 seconds parse time
+parse_rate is      11.66 lines/sec  (          677 /      58.05 )  src/test2.v 
+
+=========================================================
+
+
+parser.pl will generate a similar report for all
+modules it encounters in the files it is given.
+
+
+=========================================================
 
 The parser is now precompiled, and runs much faster than
 the previous versions. Without precompilation, it took
 about 60 seconds to run, with precompilation, it takes
 roughly 6 seconds. An order of magnitude improvement.
 
+you'll notice the report above lists performance numbers,
+and they aren't exactly impressive.
+currently, benchmarks average about 20 lines of Verilog
+code parsed per second. So, yes, its still slow. 
+Damian has promised me the next version (2.0) of 
+Parse::RecDescent will have about a 5x speed improvement. 
+Unfortunately, it may be a couple months before its 
+released.
+
+given its slow speed, the parser would be useful for 
+applications that can be run overnight, such as checking
+coding rules on all the verilog currently checked into RCS.
+
+I would eventually like to be able to detect signals
+that can be categorized as asyncronous, syncronous, 
+clocks, registered output, gated outputs, and use that
+information to automatically generate synthesis scripts,
+and flag problem areas, such as combinatorial paths
+that cross multiple hierarchy boundaries, and the like.
+
+=========================================================
 
 
 

@@ -12,13 +12,15 @@ use Parse::RecDescent;
 use vars qw ( $VERSION  @ISA);
 @ISA = ( 'PrecompiledParser' , 'Parse::RecDescent' );
 ##################################################################
-$VERSION = '0.11';
+$VERSION = '0.12';
 ##################################################################
 
 ##################################################################
 ##################################################################
 ##################################################################
 ##################################################################
+
+use Benchmark;
 
 ##################################################################
 sub new
@@ -190,7 +192,7 @@ my $could_be_quote;
 # defines.inc
 # `define width 8
 #
-# since each new included file calls filename_to_text, which in turn
+# since each included file calls filename_to_text, which in turn
 # calls convert_compiler_directives_in_text, the %define_hash cannot
 # be declared inside convert_compiler_directives_in_text because it
 # will cease to exist once the included file is spliced in.
@@ -231,7 +233,7 @@ while(1)
 
 	$filtered_text .= $string_prior_to_tick;
 
-	# if new define
+	# if define
 	if ($string_after_tick =~ /^define/)
 		{
 		$string_after_tick =~ /^define\s+(.*)\n/;
@@ -419,9 +421,59 @@ sub Filename
 
 	#print "\n\n\ntext to parse is \n$text\n\n\n\n";
 
+
+	my $tstart = new Benchmark;
  	$obj->design_file($text);
+	my $tstop = new Benchmark;
+
+	if(1)
+		{
+		my $line_count = $obj->count_number_of_lines($text);
+		print "line count is $line_count\n";
+	
+		$t = timediff($tstop,$tstart);
+		my $time_string = timestr($t);
+		print "timit result is ", $time_string , "\n";
+
+		my $cpu_sec;
+		$time_string =~ /(\d+\.\d+) usr/;
+		$cpu_sec = $1;
+		if(defined($cpu_sec))
+			{
+			if($cpu_sec<0.99)
+				{$cpu_sec = 1;}
+
+			print "using $cpu_sec seconds parse time\n";
+			$lines_per_second = $line_count / $cpu_sec ;
+			$lines_per_second_two_dec_places = 
+				sprintf("%10.2f",  $lines_per_second);
+			print "parse_rate is $lines_per_second_two_dec_places lines/sec ";
+			print sprintf (" ( %12d / %10.2f ) ", $line_count, $cpu_sec);
+			print " $filename ";
+			print "\n";
+			}
+		else
+			{
+			warn "could not extract cpu time\n";
+			$cpu_sec = 10000000;
+			}
+		}
 	}
 }
+
+#########################################################################
+sub count_number_of_lines
+#########################################################################
+#
+{
+ my ($obj,$text)=@_;
+ my @list = split(/\n/,$text);
+ my $val = @list;
+ return $val;
+}
+
+
+
 
 #########################################################################
 sub filename_to_text

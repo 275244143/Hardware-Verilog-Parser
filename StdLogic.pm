@@ -31,9 +31,18 @@ sub new
 {
  my ($class, $string) = @_;
  $string = "1'b0" unless(defined($string));
+ #print "new StdLogic, value is $string \n";
+
+ if ((substr($string,0,1) eq '"') and (substr($string, -1, 1) eq '"'))
+	{
+ 	my $r_hash = { 'width'=>1, 'binary'=>'1' };
+
+ 	bless $r_hash, $class;
+ 	return $r_hash;
+	}
+
  $string =~ s/\s//g;
 
- #print "new StdLogic, value is $string \n";
 
 
  my $numsize=undef;
