@@ -34,7 +34,9 @@ Revision history for Perl extension Hardware::Verilog::Parser.
 	and changed StdLogic.pm to support this as well.
 	StdLogic.pm performs arithmetic operator prioritization.
 
-
+0.09  24 Feb 2000
+	accumulate instance names, report at end of each module.
+	tweak literals, minor fix.
 
 
 

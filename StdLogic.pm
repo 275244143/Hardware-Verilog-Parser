@@ -8,6 +8,13 @@ package Hardware::Verilog::StdLogic;
 use Data::Dumper;
 # print Dumper($reference);
 
+# in Parser.pm, use the following line ot access dumper:
+# 	Hardware::Verilog::StdLogic::dumper(\$item{module_instance});
+sub dumper
+{
+ print Dumper(shift(@_));
+}
+
 sub new
 {
  my ($class, $string) = @_;
@@ -17,7 +24,7 @@ sub new
 
  my $r_hash;
 
- my ($width, $value);
+ my ($width, $value, $base);
  if ($string =~ /'/)
 	{
 	#################################################
@@ -28,7 +35,7 @@ sub new
 	#################################################
 	($width, $value) = split(/'/, $string);
 
-	my $base = lc ( substr($value, 0, 1) );
+	$base = lc ( substr($value, 0, 1) );
 	$value = substr($value, 1, length($value)-1);
 
 	
@@ -50,17 +57,36 @@ sub new
 
  if(defined($width) and length($width) and ($width > 0))
 	{
-	my $bits = length($value);
-	if ($width < $bits)
+	#################################################
+	# binary numbers must be exact widths.
+	# all others get some slack because
+	# 7'h4a 
+	# is actually valid, even though hexstrtobinstr will return 8 chars.
+	#################################################
+	$value =~ /^0*(.*)/;
+	my $msb_string = $1;
+	my $msb_length = length($msb_string);
+	my $total_bits = length($value);
+	if ($msb_length > $width)
 		{
 		$class->Error( 
-		"specified length is too short for given value" );
-		$r_hash = undef;
+		"specified length is too short for given value. Truncating." );
+		$value = substr($value, $total_bits-$width, $width);
 		}
-	if ($width > $bits)
+
+	elsif ($width > $total_bits)
 		{ 
-		$value = '0'x($width - $bits) . $value; 
+		$value = '0'x($width - $total_bits) . $value; 
 		}
+	elsif ($total_bits > $width)   
+		{
+		# do one last trimming for cases when
+		# the value is 3'h2, 
+		# since hexstrtobinstr will return a 4 bit value
+		$value =~ /(.{$width})$/;
+		$value = $1;
+		}
+
 	$r_hash = { 'width'=>$width, 'binary'=>$value };
 	}
  else

@@ -12,7 +12,7 @@ use Hardware::Verilog::StdLogic;
 @ISA = ( 'Parse::RecDescent' );
 ##################################################################
 use vars qw ( $VERSION  @ISA);
-$VERSION = '0.08';
+$VERSION = '0.09';
 ##################################################################
 
 ##################################################################
@@ -113,7 +113,9 @@ return  q{
 	my %verilog_output;
 	my %verilog_msb;
 	my %verilog_lsb;
+	my %verilog_instances;
 
+	my $last_encountered_net_type;
 
 	}
 	#### end of autoaction
@@ -144,6 +146,7 @@ module_declaration :
 	%verilog_output = (); 
 	%verilog_msb = (); 
 	%verilog_lsb = (); 
+	%verilog_instances = ();
 	1; 
 	}
 
@@ -154,12 +157,53 @@ module_declaration :
         'endmodule'
 
 	{
-	print "module $item{module_declaration_identifier} \n";
+	print "module $item{module_declaration_identifier} \n\n\n";
+
+	print "contained the following input ports:\n";
+	@junk = keys(%verilog_input);
+	@junk = sort(@junk);
+	foreach $junk (@junk)
+		{
+		print "\t$junk";
+		if (defined($verilog_msb{$junk}))
+			{ print ' [ '.$verilog_msb{$junk}.' : '.$verilog_lsb{$junk}.' ] ';}
+		print "\n";
+		}
+	print "\n\n";
+
+
+	print "contained the following inout ports:\n";
+	@junk = keys(%verilog_inout);
+	@junk = sort(@junk);
+	foreach $junk (@junk)
+		{
+		print "\t$junk";
+		if (defined($verilog_msb{$junk}))
+			{ print ' [ '.$verilog_msb{$junk}.' : '.$verilog_lsb{$junk}.' ] ';}
+		print "\n";
+		}
+	print "\n\n";
+
+
+	print "contained the following output ports:\n";
+	@junk = keys(%verilog_output);
+	@junk = sort(@junk);
+	foreach $junk (@junk)
+		{
+		print "\t$junk";
+		if (defined($verilog_msb{$junk}))
+			{ print ' [ '.$verilog_msb{$junk}.' : '.$verilog_lsb{$junk}.' ] ';}
+		print "\n";
+		}
+	print "\n\n";
+
+
 	print "contained the following wires:\n";
 	@junk = keys(%verilog_net);
 	@junk = sort(@junk);
 	foreach $junk (@junk)
 		{
+		print "\t type $verilog_net{$junk} ";
 		print "\t$junk";
 		if (defined($verilog_msb{$junk}))
 			{ print ' [ '.$verilog_msb{$junk}.' : '.$verilog_lsb{$junk}.' ] ';}
@@ -178,6 +222,19 @@ module_declaration :
 		print "\n";
 		}
 	print "\n\n";
+
+
+
+	print "contained the following instances:\n";
+	@junk = keys(%verilog_instances);
+	@junk = sort(@junk);
+	foreach $junk (@junk)
+		{
+		print "\t$junk is instance of $verilog_instances{$junk} \n";
+		}
+	print "\n\n";
+
+
 	1;
 	}
 
@@ -351,16 +408,16 @@ direction_port_identifier :
 	$verilog_lsb{$item{port_identifier}} = $arg[2];
 	if ($arg[0] eq 'input')
 		{
-		if(exists($verilog_input{$item{port_identifier}}))
-			{
-			$junk{'direction'} = 'input';
-			$junk{'name'} = $item{port_identifier};
-			undef;
-			}
-		else
+		#if(exists($verilog_input{$item{port_identifier}}))
+		#	{
+		#	$junk{'direction'} = 'input';
+		#	$junk{'name'} = $item{port_identifier};
+		#	undef;
+		#	}
+		#else
 			{
 			$verilog_input{$item{port_identifier}} = 1;
-			$verilog_net{$item{port_identifier}} = 1;
+			$verilog_net{$item{port_identifier}} = 'wire';
 			1; 
 			}
 		}
@@ -376,7 +433,7 @@ direction_port_identifier :
 		else
 			{
 			$verilog_inout{$item{port_identifier}} = 1;
-			$verilog_net{$item{port_identifier}} = 1;
+			$verilog_net{$item{port_identifier}} = 'wire';
 			1; 
 			}
 		}
@@ -392,7 +449,7 @@ direction_port_identifier :
 		else
 			{
 			$verilog_output{$item{port_identifier}} = 1;
-			$verilog_net{$item{port_identifier}} = 1;
+			$verilog_net{$item{port_identifier}} = 'wire';
 			1; 
 			}
 		}
@@ -551,22 +608,23 @@ comma_declaring_net_identifier :
 declaring_net_identifier : 
 	net_identifier
 	{ 
-	if(exists($verilog_net{$item{net_identifier}}))
+	#if(exists($verilog_net{$item{net_identifier}}))
+	#	{
+	#	$junk[0] = $item{net_identifier};
+	#	$return = undef;
+	#	undef;
+	#	}
+	#else
+
 		{
-		$junk[0] = $item{net_identifier};
-		$return = undef;
-		undef;
-		}
-	else
-		{
-		$verilog_net{$item{net_identifier}} = 1;
+		$verilog_net{$item{net_identifier}} = $last_encountered_net_type;
 		1; 
 		}
 	}
 	| <error: redeclaring net "$junk[0]">
 
 trireg_vectored_scalared_charge_strength_range_delay3_list_of_net : 
-        'trireg'
+        'trireg' { $last_encountered_net_type = 'trireg'; }
 	<commit>
         vectored_or_scalared(?)
         charge_strength(?)
@@ -601,16 +659,16 @@ vectored_or_scalared :
 	'vectored' | 'scalared'
 
 net_type :  
-        'wire'  |  
-        'tri'  |  
-        'tril'  |  
-        'supply0'  |
-        'wand'  |  
-        'triand'  |  
-        'tri0'  |
-        'supply1'  |  
-        'wor'  |  
-        'trior'
+        'supply0'  	{$last_encountered_net_type = 'supply0';}  |
+        'supply1'  	{$last_encountered_net_type = 'supply1';}  |  
+        'triand'  	{$last_encountered_net_type = 'triand';}   |  
+        'trior' 	{$last_encountered_net_type = 'trior';}    |
+        'wire'  	{$last_encountered_net_type = 'wire';}     |  
+        'wand'   	{$last_encountered_net_type = 'wand';}     |  
+        'tril'  	{$last_encountered_net_type = 'tril';}     |  
+        'tri0'  	{$last_encountered_net_type = 'tri0';}     | 
+        'tri'  		{$last_encountered_net_type = 'tri';}      |  
+        'wor' 	 	{$last_encountered_net_type = 'wor';}        
 
 
 drive_strength : 
@@ -1072,6 +1130,17 @@ module_instantiation :
         parameter_value_assignment(?)
         module_instance(s)
 	';'
+	{
+	my $module_identifier = $item{module_identifier};
+	my @module_instance_list = $item{module_instance};
+	foreach my $temp (@module_instance_list)
+		{
+		my $inst_name = $temp->[0]->[0]->[0];
+		$verilog_instances{$inst_name} = $module_identifier;
+		}
+
+	}
+	| <error>
 
 parameter_value_assignment :
         '#' 
@@ -1086,11 +1155,18 @@ module_instance :
         '('
         list_of_module_connections(?)
         ')'
-
+	{
+	$return = [ $item{name_of_instance}, $item{list_of_module_connections} ];
+	}
+	| <error>
 
 name_of_instance : 
          module_instance_identifier
         range(?)
+	{
+	$return = [ $item{module_instance_identifier}, $item{range} ];
+	}
+	| <error>
 
 list_of_module_connections :
 	  named_port_connection_comma_named_port_connection 
@@ -1099,31 +1175,48 @@ list_of_module_connections :
 ordered_port_connection_comma_ordered_port_connection :
 	ordered_port_connection
 	comma_ordered_port_connection(s?)
+	| <error>
 
 comma_ordered_port_connection :
 	','
 	<commit>
 	ordered_port_connection
+	{
+	$return = $item{ordered_port_connection};
+	}
 	| <error?>
 
 named_port_connection_comma_named_port_connection :
 	named_port_connection
 	comma_named_port_connection(s?)
+	{
+	$return = [ $item{named_port_connection}, @{$item{comma_named_port_connection}} ];
+	}
 
 comma_named_port_connection :
 	','
 	<commit>
 	named_port_connection
+	{
+	$return = $item{named_port_connection};
+	}
 	| <error?>
 
 ordered_port_connection :  
-        expression(?)
+        expression
+	{
+	$return = 'expression';
+	}
+	| <error>
 
 named_port_connection :
         '.' 
 	<commit>
         port_identifier
-        '(' port_expression ')'
+        '(' expression(?) ')'
+	{
+	$return = $item{port_identifier};
+	}
 	| <error?>
 
 
@@ -2671,6 +2764,7 @@ module_identifier :
 
 module_instance_identifier : 
 	identifier
+	| <error>
 
 net_identifier : 
 	identifier
@@ -2683,6 +2777,7 @@ parameter_identifier :
 
 port_identifier : 
 	identifier
+	| <error>
 
 real_identifier : 
 	identifier

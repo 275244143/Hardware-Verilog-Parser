@@ -23,16 +23,17 @@ sub new
  # make Hardware::Verilog::Hierarchy object, use SUPER:: to find the method via @ISA
  my $r_hash = $pkg->SUPER::new;
 
- $r_hash -> Replace ( q( 
-name_of_instance  : 
-         module_instance_identifier
-        range(?)
+# $r_hash -> Replace ( q( 
+#name_of_instance  : 
+#         module_instance_identifier
+#        range(?)
+#
+#		{ print "INSTANCENAME $item{module_instance_identifier} \n"; }
+#
+#module_declaration_identifier :
+#	identifier
+#		{ print "MODULENAME $item{identifier} \n"; }
 
-		{ print "INSTANCENAME $item{module_instance_identifier} \n"; }
-
-module_declaration_identifier :
-	identifier
-		{ print "MODULENAME $item{identifier} \n"; }
  ));
 
 

@@ -12,7 +12,8 @@ module testmodule (
 	output myout;
 	reg myout;
 
-	reg [ 8'h4 + 8'h3 + 8'h2 : 0 ] temp_reg;
+	reg [  8'd3 + 8'd4 * 8'd5 : 0 ] temp_reg1;
+	reg [ (8'd3 + 8'd4) * 8'd5 : 0 ] temp_reg2;
 
 	wire mywire;
 	assign mywire = myin;
@@ -23,7 +24,7 @@ module testmodule (
 	begin
 		if (!reset_n)
 			begin
-			myout <= 1'b0;
+			myout <= junk;
 			end
 		else
 			begin
