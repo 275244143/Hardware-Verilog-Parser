@@ -12,7 +12,7 @@ use Parse::RecDescent;
 use vars qw ( $VERSION  @ISA);
 @ISA = ( 'PrecompiledParser' , 'Parse::RecDescent' );
 ##################################################################
-$VERSION = '0.12';
+$VERSION = '0.13';
 ##################################################################
 
 ##################################################################
@@ -473,7 +473,65 @@ sub count_number_of_lines
 }
 
 
+#########################################################################
+sub SearchPath
+#########################################################################
+{
+ my $obj = shift;
+ my @path;
+ if(@_)
+  {
+  while(@_)
+   {
+   push(@path,shift(@_));
+   }
+  $obj->{'SearchPath'} = \@path;
+  }
+ @path = @{$obj->{'SearchPath'}};
+ return @path;
+}
 
+#########################################################################
+sub search_paths_for_filename
+#########################################################################
+{
+ my ($obj,$filename)=@_;
+
+ # if filename contains any '/' or '\' characters,
+ # assume it already contains a path. dont bother with search.
+ if ( ($filename =~ /\//) or ($filename =~ /\\/) )
+	{
+	return $filename;
+	}
+
+ # if no search path specified, dont bother looking.
+ unless(defined($obj->{'SearchPath'}))
+	{
+	return $filename;
+	}
+
+ # get search path, go through each entry, 
+ # see if file exists in that area.
+ my @paths =  @{$obj->{'SearchPath'}};
+ foreach my $path (@paths)
+  {
+  if(-e $path.$filename)
+	{
+	print "found $filename in path $path \n";
+	return $path.$filename;
+	}
+  }
+
+ # couldn't find it, report error
+ my $string = "Could not find $filename in search path: ";
+ foreach my $path (@paths)
+  {
+  $string .= " $path, ";
+  }
+ $string .= "\n";
+ die $string;
+ 
+}
 
 #########################################################################
 sub filename_to_text
@@ -481,7 +539,9 @@ sub filename_to_text
 #
 {
  my ($obj,$filename)=@_;
- open (FILE, $filename) or die "Cannot open file for reading: $filename\n";
+ my $full_path_name = $obj->search_paths_for_filename($filename);
+ open (FILE, $full_path_name) or 
+	die "Cannot open file for reading: $full_path_name\n";
  my $text;
  while(<FILE>)
   {

@@ -14,7 +14,12 @@ $::RD_AUTOSTUB = undef;
 $::RD_ERRORS = 1;
 $::RD_WARN = 1;
 $::RD_HINT = 1;
-$::RD_TRACE = 1;
+$::RD_TRACE = undef;
+
+$parse->SearchPath(
+	'./',
+	'./include/'
+	);
 
 
 $parse->Filename(@ARGV);

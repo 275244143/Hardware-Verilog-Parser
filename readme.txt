@@ -77,6 +77,24 @@ parse_rate is      11.66 lines/sec  (          677 /      58.05 )  src/test2.v
 parser.pl will generate a similar report for all
 modules it encounters in the files it is given.
 
+a sample parser.pl file could look like this:
+
+#! /bin/perl -sw
+use Hardware::Verilog::Parser;
+$parse = new Hardware::Verilog::Parser;
+$parse->SearchPath(
+	'./',
+	'./include/'
+	);
+$parse->Filename(@ARGV);
+
+
+This will parse all the files passed as command line parameters.
+Note, it also sets a "search path" which gives the parser a list
+of paths to search for the given filenames.
+If no search path is specified, files are assumed to be at ./ 
+If search path is specified, and you want to start searching at ./
+then you need to explicitly specify this.
 
 =========================================================
 
